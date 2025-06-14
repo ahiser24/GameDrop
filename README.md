@@ -1,17 +1,20 @@
-# Game Drop
-
-A streamlined video clipping application for gamers, optimized for Discord sharing.
-
 <p align="center">
   <img src="gamedrop/assets/logo.png" alt="Game Drop Logo" width="150">
 </p>
 
 
-## Insert Screenshot
+## <p style="text-align: center;">Game Drop</p>
+
+Revolutionize Your Gameplay Highlights with Smart Clipping and Seamless Discord Sharing!
+
+
+<p align="center">
+  <img src="gamedrop/assets/Game Drop.png" alt="Game Drop Logo">
+</p>
 
 ## Features
 
-- **Smart Video Clipping**: Easily select portions of your gameplay videos with precise control
+- **Video Clipping**: Easily select portions of your gameplay videos with precise control
 - **Discord-Optimized Compression**: Automatically targets Discord's 10MB file limit for direct sharing
 - **Hardware Acceleration**: Utilizes NVIDIA (NVENC), AMD (AMF), Intel, or VA-API GPU encoding
 - **Custom Export Options**: Adjustable file sizes and quality settings for non-Discord purposes
@@ -19,8 +22,8 @@ A streamlined video clipping application for gamers, optimized for Discord shari
 - **Cross-Platform Support**: Works on Windows, Linux, and Steam Deck
 - **Dark-mode Interface**: Clean, modern dark UI designed for gamers
 
-## Getting Started
-## Insert Video
+## Getting Started Video
+[![Watch the video](https://img.youtube.com/vi/jyNgILNK-KI/maxresdefault.jpg)](https://www.youtube.com/watch?v=jyNgILNK-KI)
 
 ### Installation
 
@@ -37,9 +40,6 @@ A streamlined video clipping application for gamers, optimized for Discord shari
 4. Launch Game Drope`
 
 ### Using Game Drop
-<p align="center">
-  <img src="gamedrop/assets/Game%20Drop.png" alt="Game Drop Logo">
-</p>
 1. Click **Load Video** to open a gameplay video file
 2. Use the slider to select the start and end points of your clip
 3. For Discord sharing without Nitro:
@@ -93,6 +93,7 @@ The application follows a modular architecture for better maintainability:
 ```
 gamedrop/
   ├── __main__.py                 # Application entry point
+  ├── version.py                  # Sets the version number
   ├── core/                       # Core functionality
   │   ├── app_controller.py       # Main application controller
   │   ├── media_controller.py     # Video playback functionality
@@ -137,15 +138,12 @@ python game_drop.py
 ### Building
 
 #### Windows Executable
-```bash
-pyinstaller GameDrop.spec
-```
+- Run build_windows.bat
+- To create an installer, run the GameDrop.iss file with Inno Installer
 
 #### Linux AppImage
-```bash
-chmod +x build_appimage.sh
-./build_appimage.sh
-```
+- Run build_appimage.sh
+- To create .desktop file, run install_gamedrop.sh
 
 See [REBUILD_APPIMAGE.md](REBUILD_APPIMAGE.md) for detailed Linux build instructions.
 
