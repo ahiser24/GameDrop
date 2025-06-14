@@ -38,7 +38,7 @@ Revolutionize Your Gameplay Highlights with Smart Clipping and Seamless Discord 
 1. **Linux Version (v1.0.0):** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/download/v1.0.0/GameDrop_Setup.tar.gz)
 2. Extract the files
 3. Run install_GameDrop.sh and follow the on-screen instructions
-4. Launch Game Drope`
+4. Launch Game Drop
 
 ### Using Game Drop
 1. Click **Load Video** to open a gameplay video file
