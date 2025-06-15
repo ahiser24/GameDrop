@@ -23,7 +23,8 @@ Revolutionize Your Gameplay Highlights with Smart Clipping and Seamless Discord 
 - **Dark-mode Interface**: Clean, modern dark UI designed for gamers
 
 ## Getting Started Video
-[![Watch the video](https://img.youtube.com/vi/jyNgILNK-KI/maxresdefault.jpg)](https://www.youtube.com/watch?v=jyNgILNK-KI)
+[![Watch the video](https://img.youtube.com/vi/Sgc1owFrS7E/maxresdefault.jpg)](https://www.youtube.com/watch?v=Sgc1owFrS7E)
+
 
 ### Installation
 ## Download
