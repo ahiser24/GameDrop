@@ -105,12 +105,13 @@ def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, code
 
     if bitrate != "0":
         command.extend(['-b:v', bitrate])
-        # The -pass and -passlogfile flags are only relevant for actual 2-pass capable codecs,
-        # not for stream copy. They are also generally not used for single-pass re-encodes
-        # unless one is manually doing a two-pass operation in two distinct steps with pass 1 & 2.
-        # _ffmpeg_run_pass is now used for single re-encode passes too, so pass_num determines behaviour.
-        command.extend(['-pass', str(pass_num)])
-        command.extend(['-passlogfile', passlog_file])
+        # The -pass and -passlogfile flags are only for true 2-pass encoding
+        # Don't use them for single-pass operations (pass_num == 1 and it's not the first pass of a 2-pass)
+        # We can detect true 2-pass by checking if output is null device for pass 1
+        is_true_two_pass = pass_num == 1 and output_path_or_null in ['NUL', '/dev/null']
+        if is_true_two_pass or pass_num == 2:
+            command.extend(['-pass', str(pass_num)])
+            command.extend(['-passlogfile', passlog_file])
 
 
     # Video filter configuration
@@ -125,10 +126,19 @@ def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, code
             break
 
     if active_codec in ["h264_vaapi", "hevc_vaapi"]:
-        if not any('format=nv12' in opt for opt in vf_options): vf_options.append('format=nv12')
-        if not any('hwupload' in opt for opt in vf_options): vf_options.append('hwupload')
-        if resolution: # VAAPI scaling
-            vf_options.append(f'scale_vaapi=w={resolution.split("x")[0]}:h={resolution.split("x")[1]}:format=nv12')
+        # All VA-API encoders need the proper hardware upload pipeline
+        if not any('format=nv12' in opt for opt in vf_options): 
+            vf_options.append('format=nv12')
+        if not any('hwupload' in opt for opt in vf_options): 
+            vf_options.append('hwupload')
+        
+        if resolution: # VA-API scaling
+            if is_steam_deck():
+                # Steam Deck: use simpler scale_vaapi without explicit format parameter
+                vf_options.append(f'scale_vaapi=w={resolution.split("x")[0]}:h={resolution.split("x")[1]}')
+            else:
+                # Other Linux systems: use full scale_vaapi with format
+                vf_options.append(f'scale_vaapi=w={resolution.split("x")[0]}:h={resolution.split("x")[1]}:format=nv12')
     elif resolution: # Non-VAAPI scaling
         vf_options.append(f'scale={resolution}')
 
@@ -157,6 +167,9 @@ def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, code
         elif 'qsv' in active_codec: # Intel QSV
             if '-preset' not in command: command.extend(['-preset', 'medium']) # QSV also uses presets
             # Consider adding QSV specific options like -look_ahead 0 if beneficial and not in hwaccel_args
+        elif 'vaapi' in active_codec and is_steam_deck():
+            # Steam Deck VA-API doesn't need special presets - keep it simple like original
+            pass
 
     logger.info(f"FFmpeg Pass {pass_num} command: {' '.join(command)}")
     process = subprocess.Popen(
@@ -306,7 +319,13 @@ def compress_and_send_video(input_path, start_time, end_time, output_path,
     if is_vaapi_effective: # Only prepare VAAPI params if effective codec is VAAPI
         vaapi_device = has_vaapi_support()
         if vaapi_device:
-            hwaccel_params_initial.extend(['-hwaccel', 'vaapi', '-hwaccel_device', vaapi_device, '-hwaccel_output_format', 'vaapi'])
+            if is_steam_deck():
+                logger.info("Using Steam Deck optimized VA-API configuration")
+                # Steam Deck needs hardware acceleration but with simpler parameters
+                hwaccel_params_initial.extend(['-hwaccel', 'vaapi', '-hwaccel_device', vaapi_device])
+            else:
+                # For other Linux systems, use the full hwaccel setup
+                hwaccel_params_initial.extend(['-hwaccel', 'vaapi', '-hwaccel_device', vaapi_device, '-hwaccel_output_format', 'vaapi'])
         else: # VAAPI was chosen/effective but not supported
             logger.warning(f"VAAPI codec {effective_codec} requested but no VAAPI device found. Switching to software h264.")
             effective_codec = "h264" # Fallback to software for this attempt
@@ -316,8 +335,8 @@ def compress_and_send_video(input_path, start_time, end_time, output_path,
     # Main encoding attempt
     try:
         # Determine if 2-pass should be used for the current effective_codec
-        # Not for VAAPI, not for stream copy.
-        should_use_two_pass_initial = not is_vaapi_effective and not is_stream_copy
+        # Not for VAAPI, not for stream copy, and not for Steam Deck (which worked best with single-pass)
+        should_use_two_pass_initial = not is_vaapi_effective and not is_stream_copy and not is_steam_deck()
 
         if should_use_two_pass_initial:
             logger.info(f"Attempting 2-pass encoding with codec {effective_codec}.")
