@@ -10,7 +10,7 @@ MAIN_SCRIPT="game_drop.py"
 PACKAGE_DIR="gamedrop"
 ASSETS_DIR="${PACKAGE_DIR}/assets"
 ICON_FILE="${ASSETS_DIR}/logo.png" # Use PNG for Linux icon
-VERSION="1.0.0" # Default version, can be overridden
+VERSION="1.1.0" # Default version, can be overridden
 
 # Allow version override from command line argument
 if [ ! -z "$1" ]; then

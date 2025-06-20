@@ -20,9 +20,10 @@ Key Features:
    - Frame-accurate video clipping with millisecond precision
    - Dynamic bitrate and resolution scaling
    - Optimized encoding presets for different use cases
+   - 2-pass encoding for optimized quality and file size.
 
 3. Platform-Specific Optimizations:
-   - Windows: 
+   - Windows:
      * Uses portable FFmpeg builds from gyan.dev
      * Proper path handling for both development and installed environments
    - Linux:
@@ -73,632 +74,335 @@ CREATE_NO_WINDOW = 0x08000000 if is_windows() else 0
 # Setup logging
 logger = logging.getLogger("GameDrop.FFmpeg")
 
+
+def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, codec, bitrate,
+                     resolution, ffmpeg_path, pass_num,
+                     passlog_file, single_pass_progress_callback=None,
+                     hwaccel_args=None, current_codec_for_pass=None):
+    """
+    Executes a single FFmpeg encoding pass.
+    For pass 1, output_path_or_null should be the system's null device path.
+    For pass 2 or single pass, it's the actual output file path.
+    """
+    original_duration = round(end_time - start_time, 3)
+    if original_duration <= 0:
+        original_duration = 0.001
+        logger.warning(f"Calculated duration is {original_duration}, setting to 0.001 to avoid errors.")
+
+    command = [ffmpeg_path, '-y']
+
+    active_codec = current_codec_for_pass if current_codec_for_pass else codec
+
+    if hwaccel_args: # Should be a list of strings
+        command.extend(hwaccel_args)
+
+    command.extend([
+        '-ss', f'{start_time:.3f}',
+        '-i', input_path,
+        '-t', f'{original_duration:.3f}',
+        '-c:v', active_codec,
+    ])
+
+    if bitrate != "0":
+        command.extend(['-b:v', bitrate])
+        # The -pass and -passlogfile flags are only relevant for actual 2-pass capable codecs,
+        # not for stream copy. They are also generally not used for single-pass re-encodes
+        # unless one is manually doing a two-pass operation in two distinct steps with pass 1 & 2.
+        # _ffmpeg_run_pass is now used for single re-encode passes too, so pass_num determines behaviour.
+        command.extend(['-pass', str(pass_num)])
+        command.extend(['-passlogfile', passlog_file])
+
+
+    # Video filter configuration
+    vf_options = []
+    existing_vf_value = None
+    vf_index_in_command = -1
+    for i, arg in enumerate(command): # Check if -vf is already in command (e.g. from hwaccel_args)
+        if arg == '-vf' and i + 1 < len(command):
+            existing_vf_value = command[i+1]
+            vf_index_in_command = i + 1
+            if existing_vf_value: vf_options.append(existing_vf_value)
+            break
+
+    if active_codec in ["h264_vaapi", "hevc_vaapi"]:
+        if not any('format=nv12' in opt for opt in vf_options): vf_options.append('format=nv12')
+        if not any('hwupload' in opt for opt in vf_options): vf_options.append('hwupload')
+        if resolution: # VAAPI scaling
+            vf_options.append(f'scale_vaapi=w={resolution.split("x")[0]}:h={resolution.split("x")[1]}:format=nv12')
+    elif resolution: # Non-VAAPI scaling
+        vf_options.append(f'scale={resolution}')
+
+    if vf_options: # Apply collected vf options
+        final_vf_string = ','.join(filter(None, vf_options))
+        if vf_index_in_command != -1: command[vf_index_in_command] = final_vf_string # Update existing
+        else: command.extend(['-vf', final_vf_string]) # Add new
+
+    # Pass specific output and audio settings
+    if pass_num == 1 and bitrate != "0" and output_path_or_null in ['NUL', '/dev/null']: # Check if it's a first pass of a 2-pass
+        command.extend(['-an', '-f', 'null', output_path_or_null])
+    else: # This covers pass 2 of 2-pass, single re-encode pass, or stream copy
+        if bitrate != "0": # Re-encoding (pass 2 or single re-encode)
+            command.extend(['-c:a', 'aac', '-b:a', '128k'])
+        else: # Stream copy
+            command.extend(['-c:a', 'copy'])
+        command.extend(['-movflags', '+faststart', output_path_or_null]) # Actual output file for these cases
+
+    # Preset and quality settings for re-encoding passes (bitrate != "0")
+    if bitrate != "0":
+        # Default preset for libx264 and other standard encoders
+        if active_codec not in ['h264_amf', 'hevc_amf', 'h264_vaapi', 'hevc_vaapi', 'h264_qsv', 'hevc_qsv']:
+            if '-preset' not in command: command.extend(['-preset', 'medium'])
+        elif 'amf' in active_codec: # AMD AMF
+            if '-quality' not in command: command.extend(['-quality', 'balanced'])
+        elif 'qsv' in active_codec: # Intel QSV
+            if '-preset' not in command: command.extend(['-preset', 'medium']) # QSV also uses presets
+            # Consider adding QSV specific options like -look_ahead 0 if beneficial and not in hwaccel_args
+
+    logger.info(f"FFmpeg Pass {pass_num} command: {' '.join(command)}")
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        universal_newlines=True, cwd=os.path.expanduser('~'),
+        creationflags=CREATE_NO_WINDOW
+    )
+
+    time_pattern = re.compile(r'time=(\d+:\d+:\d+.\d+)')
+    memory_error = False
+    while True:
+        line = process.stderr.readline()
+        if not line and process.poll() is not None: break
+        if line.strip():
+            logger.debug(f"FFmpeg Pass {pass_num} output: {line.strip()}")
+            if "Cannot allocate memory" in line or "out of memory" in line: memory_error = True
+        match = time_pattern.search(line)
+        if match and single_pass_progress_callback:
+            time_str = match.group(1); parts = time_str.split(':'); h = int(parts[0]); m = int(parts[1]); s_parts = parts[2].split('.')
+            s = int(s_parts[0]); ms_str = s_parts[1] if len(s_parts) > 1 else "0"; ms = int(ms_str) if ms_str.isdigit() else 0
+            current_seconds = h * 3600 + m * 60 + s + ms / (10 ** len(ms_str))
+            progress = min(100, int((current_seconds / original_duration) * 100)) if original_duration > 0 else (100 if current_seconds > 0 else 0)
+            single_pass_progress_callback(progress)
+
+    returncode = process.wait()
+    full_stderr = process.stderr.read() if process.stderr else ""
+    if returncode != 0:
+        err_msg = f"FFmpeg Pass {pass_num} failed. RC: {returncode}. Stderr: {full_stderr}"
+        if memory_error or "Cannot allocate memory" in full_stderr or "out of memory" in full_stderr:
+            logger.error(f"Memory error in {err_msg}")
+            raise Exception(f"FFmpeg Pass {pass_num} memory error. RC: {returncode}. Stderr: {full_stderr}")
+        logger.error(err_msg)
+        raise Exception(err_msg)
+    if single_pass_progress_callback: single_pass_progress_callback(100)
+    logger.info(f"FFmpeg Pass {pass_num} completed successfully.")
+    return True
+
 def get_ffmpeg_path():
-    """
-    Get the absolute path to the FFmpeg executable for the current platform.
-    
-    Resolution Strategy:
-    1. Windows:
-       - Development: Check gamedrop/assets/ffmpeg/ffmpeg.exe
-       - Installed: Check %APPDATA%/GameDrop/ffmpeg/ffmpeg.exe
-       
-    2. Linux:
-       - System: Search PATH for ffmpeg binary
-       - Development: Check gamedrop/assets/ffmpeg/ffmpeg
-       - Installed: Check ~/.config/GameDrop/ffmpeg/ffmpeg
-    
-    Returns:
-        str: Absolute path to the FFmpeg executable
-        
-    Note:
-        The returned path may not exist - use check_ffmpeg_installed()
-        to verify FFmpeg availability.
-    """
-    # First define the expected paths based on environment
     ffmpeg_dir = get_ffmpeg_directory()
-    
     if is_windows():
-        # For development environment, first check in gamedrop/assets/ffmpeg
         local_ffmpeg = os.path.join(ffmpeg_dir, 'ffmpeg.exe')
-        logger.info(f"Checking for FFmpeg in development assets: {local_ffmpeg}")
-        if os.path.exists(local_ffmpeg):
-            return local_ffmpeg
-            
-        # If not in development assets, check AppData for installed application
+        if os.path.exists(local_ffmpeg): return local_ffmpeg
         if getattr(sys, 'frozen', False):
             appdata_path = os.path.join(os.getenv('APPDATA'), 'GameDrop', 'ffmpeg')
             os.makedirs(appdata_path, exist_ok=True)
             return os.path.join(appdata_path, 'ffmpeg.exe')
-            
-        # If not found anywhere else, return the expected development path
         return local_ffmpeg
-    else:
-        # Linux-specific paths
-        # Check if FFmpeg exists in system path (preferred on Linux)
+    else: # Linux
         ffmpeg_in_path = shutil.which("ffmpeg")
-        if ffmpeg_in_path and is_linux():
-            logger.info(f"Using system FFmpeg: {ffmpeg_in_path}")
-            return ffmpeg_in_path
-            
-        # For development environment, use local assets folder
+        if ffmpeg_in_path and is_linux(): return ffmpeg_in_path
         local_ffmpeg = os.path.join(ffmpeg_dir, 'ffmpeg')
-        if os.path.exists(local_ffmpeg):
-            return local_ffmpeg
-            
-        # If not found in development, check ~/.config for installed application
+        if os.path.exists(local_ffmpeg): return local_ffmpeg
         if getattr(sys, 'frozen', False):
             config_path = os.path.join(os.path.expanduser("~"), '.config', 'GameDrop', 'ffmpeg')
             os.makedirs(config_path, exist_ok=True)
             return os.path.join(config_path, 'ffmpeg')
-            
-        # If not found anywhere else, return the expected development path
         return local_ffmpeg
 
 def check_ffmpeg_installed():
-    """
-    Verify FFmpeg availability and functionality.
-    
-    This function performs a thorough FFmpeg check:
-    1. Verifies existence of FFmpeg binary
-    2. Checks file permissions and executability
-    3. Runs a version check to validate functionality
-    4. Verifies FFmpeg version string format
-    
-    Platform Specifics:
-    - Linux: Checks system PATH first
-    - Windows: Only checks specified installation paths
-    - Steam Deck: Ensures FFmpeg has VA-API support
-    
-    Returns:
-        bool: True if FFmpeg is available and working, False otherwise
-        
-    Note:
-        A False return value indicates that download_ffmpeg() should be called.
-    """
     ffmpeg_path = get_ffmpeg_path()
-    logger.info(f"Checking for FFmpeg at: {ffmpeg_path}")
-    
-    # Check if the detected path exists and is executable
     if os.path.exists(ffmpeg_path) and os.access(ffmpeg_path, os.X_OK):
-        # Actually verify FFmpeg works by testing it
         try:
-            result = subprocess.run([ffmpeg_path, '-version'], 
-                                   stdout=subprocess.PIPE, 
-                                   stderr=subprocess.PIPE, 
-                                   timeout=5,
-                                   creationflags=CREATE_NO_WINDOW if is_windows() else 0)
-            if result.returncode == 0 and b'ffmpeg version' in result.stdout:
-                logger.info("FFmpeg found and verified working at specific path")
-                return True
-            logger.warning(f"FFmpeg binary exists at {ffmpeg_path} but failed version check")
-            return False
-        except Exception as e:
-            logger.warning(f"FFmpeg binary exists but failed to execute: {str(e)}")
-            return False
-    else:
-        logger.warning(f"FFmpeg not found at expected path: {ffmpeg_path}")
-    
-    # Only check system PATH for Linux, not for Windows development environment
+            result = subprocess.run([ffmpeg_path, '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5, creationflags=CREATE_NO_WINDOW)
+            if result.returncode == 0 and b'ffmpeg version' in result.stdout: return True
+        except Exception as e: logger.warning(f"FFmpeg at {ffmpeg_path} failed execution: {e}")
     if is_linux():
         try:
-            result = subprocess.run(['ffmpeg', '-version'], 
-                                   stdout=subprocess.PIPE, 
-                                   stderr=subprocess.PIPE)
-            # Verify the output contains "ffmpeg version"
-            if result.returncode == 0 and b'ffmpeg version' in result.stdout:
-                logger.info("FFmpeg found in system PATH (Linux)")
-                return True
-        except (subprocess.SubprocessError, FileNotFoundError) as e:
-            logger.warning(f"System FFmpeg check failed: {str(e)}")
-    
-    # If we get here, FFmpeg is not available
-    logger.warning("FFmpeg is not available")
+            result = subprocess.run(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+            if result.returncode == 0 and b'ffmpeg version' in result.stdout: return True
+        except Exception as e: logger.warning(f"System FFmpeg check failed: {e}")
+    logger.warning(f"FFmpeg not available or not functional at {ffmpeg_path}.")
     return False
 
 def download_ffmpeg(progress_callback=None):
-    """
-    Download and install FFmpeg for the current platform.
-    
-    Downloads platform-appropriate FFmpeg builds:
-    - Windows: Full build from gyan.dev (includes ffprobe)
-    - Linux: Static build from johnvansickle.com
-    
-    Install Locations:
-    - Windows Development: gamedrop/assets/ffmpeg/
-    - Windows Installed: %APPDATA%/GameDrop/ffmpeg/
-    - Linux Development: gamedrop/assets/ffmpeg/
-    - Linux Installed: ~/.config/GameDrop/ffmpeg/
-    
-    Args:
-        progress_callback (callable, optional): Function to report progress (0-100)
-        
-    Returns:
-        bool: True if installation successful, False otherwise
-        
-    Raises:
-        Exception: If download or extraction fails
-        
-    Note:
-        Automatically sets correct permissions on the installed binaries.
-        Creates necessary directories with appropriate permissions.
-        Cleans up temporary files even if installation fails.
-    """
+    ffmpeg_path = get_ffmpeg_path()
+    ffmpeg_dir = os.path.dirname(ffmpeg_path)
+    os.makedirs(ffmpeg_dir, exist_ok=True)
+    if is_windows(): url, dl_name, bin_name = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", "ffmpeg.zip", "ffmpeg.exe"
+    elif is_linux(): url, dl_name, bin_name = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz", "ffmpeg.tar.xz", "ffmpeg"
+    else: raise Exception("Unsupported platform for FFmpeg download.")
+    download_path = os.path.join(ffmpeg_dir, dl_name)
     try:
-        ffmpeg_path = get_ffmpeg_path()
-        ffmpeg_dir = os.path.dirname(ffmpeg_path)
-        
-        # Create directory if needed
-        os.makedirs(ffmpeg_dir, exist_ok=True)
-        
-        if is_windows():
-            # Windows download
-            url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-            download_path = os.path.join(ffmpeg_dir, "ffmpeg_temp.zip")
-            
-            # Download with progress
-            response = requests.get(url, stream=True)
-            total_size = int(response.headers.get('content-length', 0))
-            block_size = 1024
-            
-            with open(download_path, 'wb') as f:
-                downloaded = 0
-                for data in response.iter_content(block_size):
-                    downloaded += len(data)
-                    f.write(data)
-                    if progress_callback and total_size:
-                        progress_callback(int(downloaded * 50 / total_size))
-            
-            # Extract
-            if progress_callback:
-                progress_callback(50)
-                
-            with zipfile.ZipFile(download_path, 'r') as zip_ref:
-                # Find ffmpeg.exe in the zip
-                ffmpeg_exe = None
-                for file in zip_ref.namelist():
-                    if file.endswith('ffmpeg.exe'):
-                        ffmpeg_exe = file
-                        break
-                
-                if ffmpeg_exe:
-                    # Extract only ffmpeg.exe
-                    zip_ref.extract(ffmpeg_exe, ffmpeg_dir)
-                    
-                    # Move to correct location
-                    extracted_path = os.path.join(ffmpeg_dir, ffmpeg_exe)
-                    
-                    # Create parent directories
-                    os.makedirs(os.path.dirname(ffmpeg_path), exist_ok=True)
-                    
-                    # Move file
-                    shutil.move(extracted_path, ffmpeg_path)
-                    
-                    # Clean up directories
-                    parts = Path(ffmpeg_exe).parts
-                    if len(parts) > 1:
-                        shutil.rmtree(os.path.join(ffmpeg_dir, parts[0]))
-                else:
-                    raise Exception("Could not find ffmpeg.exe in the downloaded package")
-            
-            # Clean up zip file
-            os.remove(download_path)
-        
-        elif is_linux():
-            # Linux download
-            url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
-            download_path = os.path.join(ffmpeg_dir, "ffmpeg_temp.tar.xz")
-            
-            # Download with progress
-            response = requests.get(url, stream=True)
-            total_size = int(response.headers.get('content-length', 0))
-            block_size = 1024
-            
-            with open(download_path, 'wb') as f:
-                downloaded = 0
-                for data in response.iter_content(block_size):
-                    downloaded += len(data)
-                    f.write(data)
-                    if progress_callback and total_size:
-                        progress_callback(int(downloaded * 50 / total_size))
-            
-            # Extract
-            if progress_callback:
-                progress_callback(50)
-                
-            # Create a temporary extraction directory
-            extract_dir = os.path.join(ffmpeg_dir, "temp_extract")
-            os.makedirs(extract_dir, exist_ok=True)
-            
-            # Extract the tar.xz file
-            with tarfile.open(download_path, 'r:xz') as tar:
-                tar.extractall(path=extract_dir)
-            
-            # Find the ffmpeg binary in the extracted folder
-            for root, _, files in os.walk(extract_dir):
-                for file in files:
-                    if file == 'ffmpeg':
-                        extracted_path = os.path.join(root, file)
-                        
-                        # Make sure it's executable
-                        os.chmod(extracted_path, 0o755)
-                        
-                        # Move to correct location
-                        shutil.move(extracted_path, ffmpeg_path)
-                        break
-            
-            # Clean up
-            shutil.rmtree(extract_dir)
-            os.remove(download_path)
-        
-        if progress_callback:
-            progress_callback(100)
-            
+        r = requests.get(url, stream=True); r.raise_for_status(); total_size = int(r.headers.get('content-length',0)); downloaded_size = 0
+        with open(download_path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk); downloaded_size += len(chunk)
+                if progress_callback and total_size: progress_callback(int(downloaded_size * 50 / total_size))
+        if progress_callback: progress_callback(50)
+        if dl_name.endswith(".zip"):
+            with zipfile.ZipFile(download_path, 'r') as zf:
+                member = next((m for m in zf.namelist() if m.endswith(f'/{bin_name}') or m == bin_name), None)
+                if not member: raise Exception(f"{bin_name} not found in archive.")
+                zf.extract(member, ffmpeg_dir)
+                extracted_path = os.path.join(ffmpeg_dir, member)
+                if ffmpeg_path != extracted_path : shutil.move(extracted_path, ffmpeg_path)
+                if os.path.dirname(extracted_path) != ffmpeg_dir : shutil.rmtree(os.path.dirname(extracted_path))
+        elif dl_name.endswith(".tar.xz"):
+            with tarfile.open(download_path, 'r:xz') as tf:
+                member = next((m for m in tf.getmembers() if m.name.endswith(f'/{bin_name}') or m.name == bin_name), None)
+                if not member: raise Exception(f"{bin_name} not found in archive.")
+                tf.extract(member, ffmpeg_dir) # Extracts to full path member.name
+                extracted_path = os.path.join(ffmpeg_dir, member.name)
+                if ffmpeg_path != extracted_path: shutil.move(extracted_path, ffmpeg_path) # Ensure it's at the target path
+                if os.path.dirname(extracted_path) != ffmpeg_dir : shutil.rmtree(os.path.dirname(extracted_path))
+
+        os.chmod(ffmpeg_path, 0o755)
+        if progress_callback: progress_callback(100)
         return True
-        
-    except Exception as e:
-        logger.error(f"Error downloading FFmpeg: {str(e)}")
-        raise Exception(f"Failed to download FFmpeg: {str(e)}")
+    except Exception as e: logger.error(f"FFmpeg download/extract error: {e}"); raise
+    finally:
+        if os.path.exists(download_path): os.remove(download_path)
 
-def compress_and_send_video(input_path, start_time, end_time, output_path, 
-                          codec="h264", bitrate="1000k", 
+def compress_and_send_video(input_path, start_time, end_time, output_path,
+                          codec="h264", bitrate="1000k",
                           resolution="1920x1080", progress_callback=None):
-    """
-    Clip, compress, and optionally send a video using FFmpeg with hardware acceleration.
-    
-    Core Video Processing Features:
-    1. Hardware Acceleration:
-       - Automatically detects available hardware encoders:
-         * NVIDIA NVENC: h264_nvenc, hevc_nvenc
-         * AMD AMF: h264_amf
-         * Intel QSV: h264_qsv
-         * Linux VA-API: h264_vaapi, hevc_vaapi
-       - Falls back to software encoding (libx264) if hardware fails
-       - Special optimizations for Steam Deck VA-API support
-    
-    2. Precise Timing Control:
-       - Millisecond-accurate start/end times
-       - Frame-accurate cutting without re-encoding
-       - Maintains audio/video synchronization
-       - Fast seek support for better performance
-    
-    3. Quality Management:
-       - Dynamic bitrate allocation based on duration
-       - Automatic quality preset selection
-       - Resolution scaling with aspect ratio preservation
-       - Optimized constant rate factor settings
-    
-    4. Error Handling:
-       - Memory allocation failure recovery
-       - Hardware encoder fallback logic
-       - Multi-attempt encoding strategy
-       - Comprehensive error logging
-    
-    Args:
-        input_path (str): Full path to source video file
-        start_time (float): Clip start time in seconds (millisecond precision)
-        end_time (float): Clip end time in seconds (millisecond precision)
-        output_path (str): Destination path for processed video
-        codec (str, optional): Video codec to use. Defaults to "h264"
-            Supported values:
-            - "h264": Software H.264 encoding (libx264)
-            - "h264_nvenc": NVIDIA GPU H.264 encoding
-            - "hevc_nvenc": NVIDIA GPU H.265 encoding
-            - "h264_amf": AMD GPU H.264 encoding
-            - "h264_qsv": Intel QuickSync H.264 encoding
-            - "h264_vaapi": VA-API H.264 encoding (Linux)
-            - "hevc_vaapi": VA-API H.265 encoding (Linux)
-        bitrate (str, optional): Target video bitrate. Defaults to "1000k"
-            Use "0" for stream copy mode (no re-encoding)
-        resolution (str, optional): Output resolution. Defaults to "1920x1080"
-            Format: "WIDTHxHEIGHT" (e.g., "1280x720")
-        progress_callback (callable, optional): Progress reporting function
-            Called with values 0-100 indicating encoding progress
-    
-    Returns:
-        bool: True if processing successful, False if failed
-        
-    Raises:
-        Exception: Detailed error info if processing fails
-        
-    Note:
-        This function uses a multi-phase approach:
-        1. First attempt uses specified codec (usually hardware)
-        2. On failure, falls back to software encoding
-        3. Stream copy mode used when bitrate="0"
-        
-    Memory Management:
-        - Automatically detects memory constraints
-        - Adjusts batch parameters for stability
-        - Frees resources after processing
-        - Handles memory allocation failures
-        
-    Output Files:
-        - Creates necessary output directories
-        - Handles path permissions
-        - Includes fast-start optimization
-        - Cleans up partial files on failure
-    """
-    # Check for software encoding override
-    use_software_encoding = os.environ.get('FORCE_SOFTWARE_ENCODING') == '1'
-    if use_software_encoding:
-        logger.info("Software encoding forced by environment variable")
-        codec = "h264"
 
+    ffmpeg_path = get_ffmpeg_path()
+    if not os.access(ffmpeg_path, os.X_OK):
+        try: os.chmod(ffmpeg_path, 0o755); logger.info(f"Made FFmpeg executable: {ffmpeg_path}")
+        except Exception as e: logger.error(f"Failed to make FFmpeg executable: {e}"); raise
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    if os.path.exists(output_path):
+        try: os.remove(output_path)
+        except OSError as e: logger.warning(f"Could not remove existing output file {output_path}: {e}")
+
+    passlog_file = output_path + ".ffpass"
+
+    # Initial codec and encoding properties
+    is_stream_copy = bitrate == "0"
+
+    # Determine effective codec considering FORCE_SOFTWARE_ENCODING
+    force_software_env = os.environ.get('FORCE_SOFTWARE_ENCODING') == '1'
+    # If VAAPI/QSV/NVENC/AMF is chosen and force_software_env is true, switch to h264.
+    # Otherwise, use the chosen codec. If chosen codec is already h264, it remains h264.
+    is_hw_codec = any(c in codec for c in ["vaapi", "qsv", "nvenc", "amf"])
+    effective_codec = "h264" if force_software_env and is_hw_codec else codec
+
+    if force_software_env and is_hw_codec:
+        logger.info(f"Software encoding forced by environment variable. Original codec {codec} switched to {effective_codec}.")
+    elif force_software_env and not is_hw_codec: # e.g. codec was already h264
+         logger.info(f"Software encoding forced by environment variable. Codec {effective_codec} will be used.")
+
+    is_vaapi_effective = "vaapi" in effective_codec
+
+    hwaccel_params_initial = []
+    if is_vaapi_effective: # Only prepare VAAPI params if effective codec is VAAPI
+        vaapi_device = has_vaapi_support()
+        if vaapi_device:
+            hwaccel_params_initial.extend(['-hwaccel', 'vaapi', '-hwaccel_device', vaapi_device, '-hwaccel_output_format', 'vaapi'])
+        else: # VAAPI was chosen/effective but not supported
+            logger.warning(f"VAAPI codec {effective_codec} requested but no VAAPI device found. Switching to software h264.")
+            effective_codec = "h264" # Fallback to software for this attempt
+            is_vaapi_effective = False # Update effective VAAPI status
+            # hwaccel_params_initial remains empty for software
+
+    # Main encoding attempt
     try:
-        # Ensure exact timing by using precise start/end times
-        duration = round(end_time - start_time, 3) # Round to millisecond precision
-        
-        # Get FFmpeg path and ensure it's executable
-        ffmpeg_path = get_ffmpeg_path()
-        if not os.access(ffmpeg_path, os.X_OK):
-            os.chmod(ffmpeg_path, 0o755)
-            logger.info(f"Updated FFmpeg permissions to executable")
+        # Determine if 2-pass should be used for the current effective_codec
+        # Not for VAAPI, not for stream copy.
+        should_use_two_pass_initial = not is_vaapi_effective and not is_stream_copy
 
-        # Create output directory if it doesn't exist
-        output_dir = os.path.dirname(output_path)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        if should_use_two_pass_initial:
+            logger.info(f"Attempting 2-pass encoding with codec {effective_codec}.")
+            def pass1_prog_cb(p): progress_callback(int(p * 0.5)) if progress_callback else None
+            null_dev = 'NUL' if is_windows() else '/dev/null'
+            _ffmpeg_run_pass(input_path, start_time, end_time, null_dev,
+                             effective_codec, bitrate, resolution, ffmpeg_path, 1, passlog_file,
+                             pass1_prog_cb, hwaccel_params_initial, effective_codec)
 
-        # Check if output path exists and ensure it's writable
-        # This prevents permission errors during encoding
-        if os.path.exists(output_path):
+            def pass2_prog_cb(p): progress_callback(int(50 + p * 0.5)) if progress_callback else None
+            _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
+                             effective_codec, bitrate, resolution, ffmpeg_path, 2, passlog_file,
+                             pass2_prog_cb, hwaccel_params_initial, effective_codec)
+        else: # Single-pass (VAAPI, stream copy, or other non-2-pass codecs like potentially some HW encoders if not libx264/x265)
+            logger.info(f"Attempting single-pass encoding with codec {effective_codec}.")
+            _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
+                             effective_codec, bitrate, resolution, ffmpeg_path, 1, passlog_file, # Pass 1 signifies a complete single operation here
+                             progress_callback, hwaccel_params_initial, effective_codec)
+
+        if progress_callback: progress_callback(100)
+        return True # Initial attempt successful
+
+    except Exception as e_initial:
+        logger.error(f"Initial encoding attempt with {effective_codec} failed: {e_initial}")
+
+        # Fallback to software (libx264) if the initial attempt was not already h264 software
+        if effective_codec != "h264":
+            logger.warning("Falling back to software h264 encoding.")
+            current_codec_for_fallback = "h264"
+            # For software fallback, hwaccel_params should be empty or None
+            hwaccel_params_fallback = []
+
+            # Decide if 2-pass should be used for the software fallback
+            should_use_two_pass_for_fallback = not is_stream_copy # 2-pass for s/w unless stream copy
+
             try:
-                os.remove(output_path)
-            except OSError as e:
-                logger.warning(f"Could not remove existing output file: {str(e)}")
-                os.chmod(output_path, 0o666)  # Try to make it writable
+                if os.path.exists(passlog_file): os.remove(passlog_file) # Clean before new attempt
 
-        # COMMAND CONSTRUCTION BASED ON CODEC TYPE:
+                if should_use_two_pass_for_fallback:
+                    logger.info("Attempting 2-pass software fallback encoding.")
+                    def fb_p1_prog_cb(p): progress_callback(int(p*0.5)) if progress_callback else None
+                    null_dev = 'NUL' if is_windows() else '/dev/null'
+                    _ffmpeg_run_pass(input_path, start_time, end_time, null_dev,
+                                     current_codec_for_fallback, bitrate, resolution, ffmpeg_path, 1, passlog_file,
+                                     fb_p1_prog_cb, hwaccel_params_fallback, current_codec_for_fallback)
 
-        # Encoding Strategy:
-        # 1. First attempt: Try hardware encoding (if codec is set to hardware encoder)
-        # 2. Second attempt: Fall back to software encoding if hardware fails
-        # This ensures the fastest possible encoding while maintaining reliability
-        for attempt in range(2):
-            try:
-                if attempt == 1:
-                    # If first attempt failed, switch to reliable software encoding
-                    logger.warning("Hardware encoding failed, falling back to software encoding")
-                    codec = "h264"  # h264 software encoding is universally supported
+                    def fb_p2_prog_cb(p): progress_callback(int(50+p*0.5)) if progress_callback else None
+                    _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
+                                     current_codec_for_fallback, bitrate, resolution, ffmpeg_path, 2, passlog_file,
+                                     fb_p2_prog_cb, hwaccel_params_fallback, current_codec_for_fallback)
+                else: # Single-pass software fallback (likely for stream copy, though unusual to reach here for stream copy fail)
+                    logger.info("Attempting single-pass software fallback encoding.")
+                    _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
+                                     current_codec_for_fallback, bitrate, resolution, ffmpeg_path, 1, passlog_file,
+                                     progress_callback, hwaccel_params_fallback, current_codec_for_fallback)
 
-                # Command construction varies based on:
-                # 1. Whether we're copying streams or re-encoding
-                # 2. Which hardware encoder we're using
-                # 3. Platform-specific optimizations (especially for Steam Deck)
-                if bitrate == "0":
-                    # Stream Copy Mode:
-                    # - No re-encoding, just cuts the video
-                    # - Ultra fast but may have less precise cuts
-                    # - Maintains original quality
-                    command = [
-                        ffmpeg_path,
-                        '-y',  # Overwrite output without asking
-                        '-ss', f'{start_time:.3f}',  # Start time with ms precision
-                        '-i', input_path,
-                        '-t', f'{duration:.3f}',  # Duration with ms precision
-                        '-c:v', 'copy',   # Copy video stream as-is
-                        '-c:a', 'copy',   # Copy audio stream as-is
-                        '-movflags', '+faststart',  # Enable streaming optimization
-                        output_path
-                    ]
-
-                elif codec in ["h264_vaapi", "hevc_vaapi"]:
-                    # VA-API Hardware Encoding:
-                    # - Used for Intel and AMD GPUs on Linux
-                    # - Different optimizations for Steam Deck vs regular Linux
-                    # - Requires proper hardware support and drivers
-                    vaapi_device = has_vaapi_support()
-                    if vaapi_device:
-                        logger.info(f"Using VA-API hardware encoding ({codec}) with device: {vaapi_device}")
-                        
-                        if is_steam_deck():
-                            # Steam Deck Specific Configuration:
-                            # - Uses proven command structure
-                            # - Optimized for Steam Deck's memory constraints
-                            # - Maintains stability on SteamOS
-                            logger.info("Using Steam Deck optimized VA-API settings")
-                            command = [
-                                ffmpeg_path,
-                                '-y',
-                                '-hwaccel', 'vaapi',
-                                '-hwaccel_device', vaapi_device,
-                                '-ss', f'{start_time:.3f}',
-                                '-i', input_path,
-                                '-t', f'{duration:.3f}',
-                                '-vf', 'format=nv12,hwupload',  # Exactly matching your manual command
-                                '-c:v', codec,
-                                '-b:v', bitrate,
-                                '-c:a', 'aac',
-                                '-b:a', '128k',
-                                '-movflags', '+faststart',
-                                output_path
-                            ]
-                        else:
-                            # Standard VA-API configuration for other Linux systems
-                            command = [
-                                ffmpeg_path,
-                                '-y',
-                                '-hwaccel', 'vaapi',
-                                '-hwaccel_device', vaapi_device,
-                                '-ss', f'{start_time:.3f}',
-                                '-i', input_path,
-                                '-t', f'{duration:.3f}',
-                                '-vf', f'format=nv12,hwupload,scale_vaapi=w=1920:h=1080:format=nv12',
-                                '-c:v', codec,
-                                '-b:v', bitrate,
-                                '-c:a', 'aac',
-                                '-b:a', '128k',
-                                '-movflags', '+faststart',
-                                output_path
-                            ]
-                    else:
-                        # Fallback to software if VA-API not available
-                        logger.warning("VA-API device not found, falling back to software encoding")
-                        codec = "h264"
-                        command = [
-                            ffmpeg_path,
-                            '-y',
-                            '-ss', f'{start_time:.3f}',
-                            '-i', input_path,
-                            '-t', f'{duration:.3f}',
-                            '-c:v', 'h264',
-                            '-preset', 'medium',
-                            '-vf', f'scale={resolution}',
-                            '-b:v', bitrate,
-                            '-c:a', 'aac',
-                            '-b:a', '128k',
-                            '-movflags', '+faststart',
-                            output_path
-                        ]
-                elif codec == 'h264_amf':
-                    # AMD AMF encoder - don't use preset
-                    command = [
-                        ffmpeg_path,
-                        '-y',
-                        '-ss', f'{start_time:.3f}',
-                        '-i', input_path,
-                        '-t', f'{duration:.3f}',
-                        '-c:v', codec,
-                        '-vf', f'scale={resolution}',
-                        '-b:v', bitrate,
-                        '-quality', 'balanced',  # AMF specific quality setting
-                        '-c:a', 'aac',
-                        '-b:a', '128k',
-                        '-movflags', '+faststart',
-                        output_path
-                    ]
-                else:
-                    # Software or other hardware encoders
-                    command = [
-                        ffmpeg_path,
-                        '-y',
-                        '-ss', f'{start_time:.3f}',
-                        '-i', input_path,
-                        '-t', f'{duration:.3f}',
-                        '-c:v', codec,
-                        '-preset', 'medium',
-                        '-vf', f'scale={resolution}',
-                        '-b:v', bitrate,
-                        '-c:a', 'aac',
-                        '-b:a', '128k',
-                        '-movflags', '+faststart',
-                        output_path
-                    ]
-
-                logger.info(f"FFmpeg command: {' '.join(command)}")
-
-                # Execute the command with progress tracking in the user's home directory
-                process = subprocess.Popen(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,
-                    cwd=os.path.expanduser('~'),  # Run in user's home directory
-                    creationflags=CREATE_NO_WINDOW if is_windows() else 0
-                )
-
-                # Track progress
-                duration_seconds = duration
-                time_pattern = re.compile(r'time=(\d+:\d+:\d+.\d+)')
-                memory_error = False
-                
-                while True:
-                    line = process.stderr.readline()
-                    if not line and process.poll() is not None:
-                        break
-                        
-                    # Log FFmpeg output for debugging
-                    if line.strip():
-                        logger.debug(f"FFmpeg output: {line.strip()}")
-                        # Check for memory allocation errors
-                        if "Cannot allocate memory" in line or "out of memory" in line:
-                            memory_error = True
-                        
-                    # Parse progress
-                    match = time_pattern.search(line)
-                    if match and progress_callback:
-                        time_str = match.group(1)
-                        h, m, s = map(float, time_str.split(':'))
-                        current_seconds = h * 3600 + m * 60 + s
-                        progress = min(100, int((current_seconds / duration_seconds) * 100))
-                        progress_callback(progress)
-                
-                # Wait for process to complete and get return code
-                returncode = process.wait()
-                
-                if returncode != 0:
-                    _, stderr = process.communicate()
-                    logger.error(f"FFmpeg stderr: {stderr}")
-                    
-                    # Check if it's a memory error
-                    if memory_error and attempt == 0 and codec != "h264":
-                        logger.warning("Memory allocation error detected, trying software encoding")
-                        continue
-                    
-                    raise Exception(f"FFmpeg encoding failed with return code {returncode}")
-                
-                # If we got here, encoding was successful
-                if progress_callback:
-                    progress_callback(100)
-                    
-                logger.info("FFmpeg encoding completed successfully")
-                return True
-                
-            except Exception as e:
-                if attempt == 0 and (
-                    "Cannot allocate memory" in str(e) or 
-                    "out of memory" in str(e) or
-                    "234" in str(e) or 
-                    "244" in str(e)
-                ):
-                    logger.warning(f"Hardware encoding failed with memory error: {str(e)}")
-                    # Continue to next attempt with software encoding
-                    continue
-                else:
-                    # Re-raise the exception if it's the second attempt or not a memory error
-                    raise
-        
-        # We should never reach this point, but just in case
-        raise Exception("All encoding attempts failed")
-            
-    except Exception as e:
-        logger.error(f"Error in compress_and_send_video: {str(e)}")
-        raise Exception(f"Error compressing video: {str(e)}")
+                if progress_callback: progress_callback(100)
+                return True # Fallback successful
+            except Exception as e_fallback:
+                logger.error(f"Software fallback encoding failed: {e_fallback}")
+                raise Exception(f"All encoding attempts failed. Initial: {e_initial}. Fallback: {e_fallback}")
+        else: # Initial attempt was already h264 software and failed
+            raise e_initial # Re-raise the exception from the initial h264 attempt
+    finally:
+        # Clean up all ffmpeg 2-pass log files
+        for ext in ["", "-0.log", "-0.log.mbtree"]:
+            log_path = passlog_file + ext
+            if os.path.exists(log_path):
+                try:
+                    os.remove(log_path)
+                    logger.info(f"Cleaned up passlog file: {log_path}")
+                except OSError as ex:
+                    logger.warning(f"Could not delete passlog file {log_path}: {ex}")
 
 def send_to_discord(file_path, webhook_url, title=None):
-    """Send a file to Discord using a webhook with optional title"""
     try:
-        # Validate inputs
-        if not webhook_url:
-            logger.error("Missing webhook URL")
-            raise ValueError("Webhook URL is required")
-            
-        if not file_path or not os.path.exists(file_path):
-            logger.error(f"File not found: {file_path}")
-            raise FileNotFoundError(f"File not found: {file_path}")
-            
-        logger.info(f"Sending file to Discord: {os.path.basename(file_path)}")
-        logger.info(f"File size: {os.path.getsize(file_path) / (1024*1024):.2f} MB")
-        
+        if not webhook_url: raise ValueError("Webhook URL is required")
+        if not os.path.exists(file_path): raise FileNotFoundError(f"File not found: {file_path}")
+        logger.info(f"Sending {os.path.basename(file_path)} to Discord ({os.path.getsize(file_path)/(1024*1024):.2f} MB)")
         with open(file_path, 'rb') as f:
-            files = {'file': f}
-            payload = {}
-            if title:
-                payload = {'content': f"**{title}**"}  # Bold the title in Discord markdown
-                
-            logger.info(f"Sending to webhook with{' title' if title else 'out title'}")
-            response = requests.post(webhook_url, files=files, data=payload)
-            response.raise_for_status()
-            
-            logger.info(f"Successfully sent to Discord, status: {response.status_code}")
-            return True
-    except requests.exceptions.RequestException as e:
-        if "413" in str(e):
-            logger.error("File too large to send to Discord, but it was saved locally")
-            raise Exception("File too large to send to Discord, but it was saved locally")
-        else:
-            logger.error(f"Network error sending to Discord: {str(e)}")
-            raise Exception(f"Failed to send to Discord (network error): {str(e)}")
-    except Exception as e:
-        logger.error(f"Error sending to Discord: {str(e)}")
-        raise Exception(f"Failed to send to Discord: {str(e)}")
+            payload = {'content': f"**{title}**"} if title else {}
+            r = requests.post(webhook_url, files={'file': f}, data=payload); r.raise_for_status()
+        logger.info(f"Successfully sent to Discord, status: {r.status_code}")
+        return True
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 413: logger.error("File too large for Discord, saved locally."); raise Exception("File too large for Discord.")
+        else: logger.error(f"HTTP error sending to Discord: {e}"); raise Exception(f"Failed to send (HTTP {e.response.status_code}): {e}")
+    except Exception as e: logger.error(f"Error sending to Discord: {e}"); raise Exception(f"Failed to send: {e}")
