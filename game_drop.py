@@ -16,6 +16,8 @@ import sys
 import os
 import logging
 
+sys.dont_write_bytecode = True
+
 # Ensure the current directory (project root) is in the Python path
 # This allows running the script from the root folder without install
 current_dir = os.path.dirname(os.path.abspath(__file__))

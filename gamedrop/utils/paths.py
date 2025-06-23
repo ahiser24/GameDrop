@@ -47,7 +47,7 @@ def get_logs_directory():
     
     The location varies by platform and environment:
     - Linux: ~/.config/gamedrop/logs
-    - Windows (bundled): %APPDATA%/GameDrop/Logs
+    - Windows: %APPDATA%/GameDrop/Logs
     - Development: <app_root>/Logs
     
     Returns:
@@ -56,15 +56,11 @@ def get_logs_directory():
     if platform.system() == "Linux":
         # Use standard Linux config directory
         logs_dir = os.path.join(os.path.expanduser("~"), '.config', 'gamedrop', 'logs')
-    elif getattr(sys, 'frozen', False):
-        # For bundled app on other OS (e.g., Windows), use app root or user data area
-        # Example for Windows (adjust as needed):
-        # if platform.system() == "Windows":
-        #     logs_dir = os.path.join(os.getenv('APPDATA'), 'GameDrop', 'Logs')
-        # else: # Default for other frozen OS or fallback
-        logs_dir = os.path.join(get_app_root(), 'Logs')
+    elif platform.system() == "Windows":
+        # Use AppData for Windows (both bundled and development)
+        logs_dir = os.path.join(os.getenv('APPDATA'), 'GameDrop', 'Logs')
     else:
-        # Development environment
+        # Development environment or other OS
         logs_dir = os.path.join(get_app_root(), 'Logs')
         
     os.makedirs(logs_dir, exist_ok=True)  # Ensure the directory exists
@@ -161,7 +157,7 @@ def get_webhooks_path():
     Get the path to the webhooks.json configuration file.
     
     The location varies by operating system:
-    - Windows: Stored in the application root directory
+    - Windows: Stored in %APPDATA%\GameDrop\webhooks.json for consistency
     - Linux: Stored in the logs directory (especially important for AppImage)
     
     Returns:
@@ -173,9 +169,11 @@ def get_webhooks_path():
     """
     import platform
     
-    # On Windows, store webhooks.json in the app's root directory
+    # On Windows, store webhooks.json in AppData for consistency with logs and FFmpeg
     if platform.system() == "Windows":
-        return os.path.join(get_app_root(), 'webhooks.json')
+        webhook_dir = os.path.join(os.getenv('APPDATA'), 'GameDrop')
+        ensure_directory_exists(webhook_dir)
+        return os.path.join(webhook_dir, 'webhooks.json')
     # On Linux (especially AppImage), store it in the logs directory
     else:
         return os.path.join(get_logs_directory(), 'webhooks.json')
