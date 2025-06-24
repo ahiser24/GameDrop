@@ -396,70 +396,14 @@ class LogViewerDialog(QDialog):
             return
             
         try:
-            # Use appropriate command based on platform
-            if sys.platform.startswith('win'):
-                os.startfile(self.log_path)
-            elif sys.platform.startswith('darwin'):  # macOS
-                subprocess.run(['open', self.log_path], check=True)
-            else:  # Linux
-                logger.info(f"Attempting to open log file on Linux: {self.log_path}")
-                try:
-                    # Primary attempt: xdg-open with cleaned environment
-                    logger.info("Trying to open with xdg-open...")
-                    env = os.environ.copy()
-                    # Variables often set by AppImage that might interfere with external tools
-                    vars_to_clean = ['LD_LIBRARY_PATH', 'LD_PRELOAD', 'PYTHONHOME', 'PYTHONPATH', 'APPDIR', 'APPIMAGE', 'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH']
-                    cleaned_vars_log = []
-                    for var in vars_to_clean:
-                        if var in env:
-                            del env[var]
-                            cleaned_vars_log.append(var)
-                    
-                    if cleaned_vars_log:
-                        logger.info(f"Using xdg-open with a cleaned environment. Removed: {', '.join(cleaned_vars_log)}")
-                    else:
-                        logger.info("Using xdg-open with inherited environment (no common AppImage/Qt vars found to clean).")
+            # Use QDesktopServices for cross-platform and sandbox compatibility
+            # This is more reliable than os.startfile or subprocess.run in sandboxed environments like MSIX
+            qurl_path = QUrl.fromLocalFile(self.log_path)
+            
+            if not QDesktopServices.openUrl(qurl_path):
+                logger.error(f"QDesktopServices.openUrl failed for {qurl_path.toString()}")
+                QMessageBox.warning(self, "Error", "Could not open the log file with the default application.")
 
-                    result = subprocess.run(
-                        ['xdg-open', self.log_path],
-                        check=False,  # Manually check returncode
-                        capture_output=True,
-                        text=True,
-                        env=env  # Use the potentially modified environment
-                    )
-                    if result.returncode == 0:
-                        logger.info(f"Successfully opened {self.log_path} using xdg-open.")
-                    else:
-                        # xdg-open executed but failed
-                        error_message = (f"xdg-open failed for {self.log_path}. "
-                                         f"Return code: {result.returncode}. "
-                                         f"Stdout: '{result.stdout.strip()}'. "
-                                         f"Stderr: '{result.stderr.strip()}'.")
-                        logger.error(error_message)
-                        # Display xdg-open's error to the user
-                        QMessageBox.warning(self, "Error", f"Could not open log file using xdg-open. Error: {result.stderr.strip() if result.stderr.strip() else 'No specific error message from xdg-open. Check logs.'}")
-                
-                except FileNotFoundError:
-                    # xdg-open command not found, fall back to QDesktopServices
-                    logger.warning("xdg-open command not found. Falling back to QDesktopServices.")
-                    qurl_path = QUrl.fromLocalFile(self.log_path)
-                    logger.info(f"Attempting to open with QDesktopServices using URL: {qurl_path.toString()}")
-                    
-                    if QDesktopServices.openUrl(qurl_path):
-                        # This might still lead to the "Could not read file" external error,
-                        # but it's the best we can do if xdg-open is missing.
-                        logger.info(f"Successfully initiated opening {self.log_path} using QDesktopServices. The system's default application will handle the file.")
-                    else:
-                        logger.error(f"QDesktopServices.openUrl failed for {qurl_path.toString()} (local path: {self.log_path}).")
-                        QMessageBox.warning(self, "Error", "Could not open log file: xdg-open command not found and QDesktopServices failed to launch a handler.")
-                
-                except Exception as e_os_open:
-                    # Catch any other unexpected error during xdg-open attempt or QDesktopServices fallback
-                    logger.error(f"An unexpected error occurred while trying to open the log file on Linux: {str(e_os_open)}")
-                    QMessageBox.warning(self, "Error", f"Could not open log file: {str(e_os_open)}")
-        except subprocess.CalledProcessError as e_sub: # For macOS or Windows if os.startfile/subprocess.run(check=True) fails
-            logger.error(f"CalledProcessError when trying to open log file: {str(e_sub)}")
-            QMessageBox.warning(self, "Error", f"Could not open log file: {str(e_sub)}")
         except Exception as e:
             logger.error(f"General error when trying to open log file: {str(e)}")
             QMessageBox.warning(self, "Error", f"Could not open log file: {str(e)}")

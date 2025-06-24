@@ -12,6 +12,11 @@ This module serves as the entry point for the Game Drop application. It handles 
 import sys
 import os
 import logging
+
+# --- Add this line to force Qt to use the FFmpeg media backend ---
+os.environ['QT_MEDIA_BACKEND'] = 'ffmpeg'
+# -----------------------------------------------------------------
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
 from gamedrop.utils.paths import resource_path, get_logs_directory
@@ -27,8 +32,8 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_file),  # Write logs to file
-        logging.StreamHandler()         # Also output logs to console
+        logging.FileHandler(log_file, mode='w'),  # Start with a clean log each time
+        logging.StreamHandler()
     ]
 )
 logger = logging.getLogger("GameDrop")

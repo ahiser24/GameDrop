@@ -77,6 +77,8 @@ class MediaController(QObject):
         """
         try:
             url = QUrl.fromLocalFile(file_path)
+            # Add this line for diagnostics
+            logger.info(f"Attempting to set media source with URL: {url.toString()}") 
             self.media_player.setSource(url)
             logger.info(f"Media source set: {file_path}")
         except Exception as e:

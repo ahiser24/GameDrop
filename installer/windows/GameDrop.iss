@@ -1,5 +1,5 @@
 #define MyAppName "GameDrop"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0.0"
 #define MyAppPublisher "TecRex IT"
 #define MyAppURL "https://andrewhiser.com/apps"
 #define MyAppExeName "GameDrop.exe"
