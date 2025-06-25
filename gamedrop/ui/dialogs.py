@@ -342,6 +342,13 @@ class LogViewerDialog(QDialog):
             padding: 8px;
         """)
         
+        # Log path display - Added for better debugging in AppImage
+        self.path_label = QLabel()
+        self.path_label.setWordWrap(True)
+        self.path_label.setStyleSheet("color: #8a8a8a; font-size: 10px;")
+        if self.log_path:
+            self.path_label.setText(f"Log file: {self.log_path}")
+        
         # Load log content
         self.load_log_content()
         
@@ -353,17 +360,23 @@ class LogViewerDialog(QDialog):
         open_file_button = QPushButton("Open Log File")
         open_file_button.clicked.connect(self.open_log_file)
         
+        # Added a direct copy path button for easier troubleshooting
+        copy_path_button = QPushButton("Copy Path")
+        copy_path_button.clicked.connect(self.copy_log_path)
+        
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         
         button_layout.addWidget(copy_button)
         button_layout.addWidget(open_file_button)
+        button_layout.addWidget(copy_path_button)
         button_layout.addStretch(1)
         button_layout.addWidget(close_button)
         
         # Add widgets to layout
         layout.addWidget(title_label)
         layout.addWidget(description_label)
+        layout.addWidget(self.path_label)
         layout.addWidget(self.log_display, 1)
         layout.addLayout(button_layout)
         
@@ -374,127 +387,215 @@ class LogViewerDialog(QDialog):
     def load_log_content(self):
         """Load log content from file"""
         try:
-            if not self.log_path or not os.path.exists(self.log_path):
-                self.log_display.setText("Log file not found.")
+            if not self.log_path:
+                self.log_display.setText("No log path provided.")
                 return
                 
+            if not os.path.exists(self.log_path):
+                self.log_display.setText(f"Log file not found at: {self.log_path}")
+                return
+                
+            # Log additional diagnostic information
+            logger.info(f"Loading log content from: {self.log_path}")
+            logger.info(f"File exists: {os.path.exists(self.log_path)}")
+            logger.info(f"File size: {os.path.getsize(self.log_path) if os.path.exists(self.log_path) else 'N/A'}")
+            
             with open(self.log_path, 'r') as f:
                 log_content = f.read()
                 self.log_display.setText(self.system_info + log_content)
+                logger.info(f"Successfully loaded {len(log_content)} bytes from log file")
         except Exception as e:
-            self.log_display.setText(f"Error reading log file: {str(e)}")
+            error_msg = f"Error reading log file: {str(e)}"
+            logger.error(error_msg)
+            self.log_display.setText(error_msg)
             
     def copy_to_clipboard(self):
         """Copy log content to clipboard"""
         clipboard = QApplication.clipboard()
         clipboard.setText(self.log_display.toPlainText())
         
+    def copy_log_path(self):
+        """Copy the log file path to clipboard"""
+        if self.log_path:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(self.log_path)
+            logger.info(f"Copied log path to clipboard: {self.log_path}")
+        
     def open_log_file(self):
         """Open the log file with system default application"""
-        if not self.log_path or not os.path.exists(self.log_path):
-            QMessageBox.warning(self, "Error", "Log file not found")
+        if not self.log_path:
+            QMessageBox.warning(self, "Error", "No log path provided")
             return
             
-        logger.info(f"Attempting to open log file: {self.log_path}")
-        
+        if not os.path.exists(self.log_path):
+            QMessageBox.warning(self, "Error", f"Log file not found at: {self.log_path}")
+            return
+            
         try:
-            # Use QDesktopServices for cross-platform and sandbox compatibility
-            # This is more reliable than os.startfile or subprocess.run in sandboxed environments like MSIX
-            qurl_path = QUrl.fromLocalFile(self.log_path)
-            logger.debug(f"QUrl path: {qurl_path.toString()}")
+            # Check if we're running in an AppImage
+            is_appimage = 'APPIMAGE' in os.environ
+            logger.info(f"Running in AppImage environment: {is_appimage}")
             
-            if QDesktopServices.openUrl(qurl_path):
-                logger.info(f"Successfully opened log file with QDesktopServices: {self.log_path}")
-                return
-            else:
-                logger.warning(f"QDesktopServices.openUrl returned False for {qurl_path.toString()}")
-                # Try Linux-specific fallbacks
-                if self._try_linux_text_editors():
-                    return
+            # Use appropriate command based on platform
+            if sys.platform.startswith('win'):
+                logger.info(f"Opening log file on Windows using os.startfile: {self.log_path}")
+                os.startfile(self.log_path)
+            elif sys.platform.startswith('darwin'):  # macOS
+                logger.info(f"Opening log file on macOS using 'open' command: {self.log_path}")
+                subprocess.run(['open', self.log_path], check=True)
+            else:  # Linux
+                logger.info(f"Attempting to open log file on Linux: {self.log_path}")
                 
-                # If all methods fail, show an informative error message
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
-                msg.setWindowTitle("Unable to Open Log File")
-                msg.setText("Could not open the log file automatically.")
-                msg.setInformativeText(f"You can manually open the log file at:\n{self.log_path}")
-                msg.setDetailedText("The system could not find a suitable application to open .log files. "
-                                   "You can copy the path above and open it with your preferred text editor.")
-                msg.exec()
-
-        except Exception as e:
-            logger.error(f"Exception when trying to open log file with QDesktopServices: {str(e)}")
-            # Try Linux-specific fallbacks on exception too
-            if sys.platform.startswith('linux') and self._try_linux_text_editors():
-                return
+                # Add fallback mechanism - try to display the file content directly if external opening fails
+                if is_appimage:
+                    logger.info("Detected AppImage environment - special handling for log files")
                 
-            # Show error with file path for manual opening
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setWindowTitle("Error Opening Log File")
-            msg.setText(f"An error occurred while trying to open the log file: {str(e)}")
-            msg.setInformativeText(f"You can manually open the log file at:\n{self.log_path}")
-            msg.exec()
-    
-    def _try_linux_text_editors(self):
-        """Try to open the log file with common Linux text editors"""
-        if not sys.platform.startswith('linux'):
-            return False
-            
-        # List of common Linux text editors to try, in order of preference
-        editors = [
-            'xdg-open',     # Standard Linux command to open files
-            'gedit',        # GNOME text editor
-            'kate',         # KDE text editor
-            'mousepad',     # XFCE text editor
-            'leafpad',      # Lightweight text editor
-            'nano',         # Terminal-based editor (will open in terminal)
-            'vim',          # Terminal-based editor (will open in terminal)
-            'emacs',        # Terminal-based editor (will open in terminal)
-        ]
-        
-        for editor in editors:
-            try:
-                # Check if the editor is available
-                result = subprocess.run(['which', editor], 
-                                      capture_output=True, 
-                                      text=True, 
-                                      timeout=5)
-                if result.returncode == 0:
-                    logger.info(f"Trying to open log file with {editor}")
+                try:
+                    # Primary attempt: xdg-open with cleaned environment
+                    logger.info("Trying to open with xdg-open...")
+                    env = os.environ.copy()
+                    # Variables often set by AppImage that might interfere with external tools
+                    vars_to_clean = ['LD_LIBRARY_PATH', 'LD_PRELOAD', 'PYTHONHOME', 'PYTHONPATH', 
+                                     'APPDIR', 'APPIMAGE', 'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH', 
+                                     'ARGV0', 'APPRUN', 'OWD']
+                    cleaned_vars_log = []
+                    for var in vars_to_clean:
+                        if var in env:
+                            del env[var]
+                            cleaned_vars_log.append(var)
                     
-                    # For terminal editors, try to open in a new terminal window
-                    if editor in ['nano', 'vim', 'emacs']:
-                        # Try common terminal emulators
-                        terminals = ['gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm']
-                        for terminal in terminals:
-                            try:
-                                term_check = subprocess.run(['which', terminal], 
-                                                          capture_output=True, 
-                                                          text=True, 
-                                                          timeout=5)
-                                if term_check.returncode == 0:
-                                    subprocess.Popen([terminal, '-e', editor, self.log_path])
-                                    logger.info(f"Opened log file with {terminal} + {editor}")
-                                    return True
-                            except Exception:
-                                continue
+                    if cleaned_vars_log:
+                        logger.info(f"Using xdg-open with a cleaned environment. Removed: {', '.join(cleaned_vars_log)}")
                     else:
-                        # For GUI editors, open directly
-                        subprocess.Popen([editor, self.log_path])
-                        logger.info(f"Opened log file with {editor}")
-                        return True
-                        
-            except subprocess.TimeoutExpired:
-                logger.debug(f"Timeout checking for {editor}")
-                continue
-            except Exception as e:
-                logger.debug(f"Failed to check/open with {editor}: {str(e)}")
-                continue
-        
-        logger.warning("No suitable text editor found for opening log file")
-        return False
+                        logger.info("Using xdg-open with inherited environment (no common AppImage/Qt vars found to clean).")
 
+                    # Try to get the real path to the log file
+                    real_path = os.path.realpath(self.log_path)
+                    logger.info(f"Real path to log file: {real_path}")
+                    
+                    result = subprocess.run(
+                        ['xdg-open', real_path],
+                        check=False,  # Manually check returncode
+                        capture_output=True,
+                        text=True,
+                        env=env  # Use the potentially modified environment
+                    )
+                    if result.returncode == 0:
+                        logger.info(f"Successfully opened {real_path} using xdg-open.")
+                    else:
+                        # xdg-open executed but failed
+                        error_message = (f"xdg-open failed for {real_path}. "
+                                         f"Return code: {result.returncode}. "
+                                         f"Stdout: '{result.stdout.strip()}'. "
+                                         f"Stderr: '{result.stderr.strip()}'.")
+                        logger.error(error_message)
+                        
+                        if is_appimage:
+                            # In AppImage, try to use a more direct approach
+                            logger.info("AppImage environment detected - trying to display file content directly")
+                            self.show_log_content_dialog()
+                        else:
+                            # Display xdg-open's error to the user
+                            QMessageBox.warning(self, "Error", f"Could not open log file using xdg-open. Error: {result.stderr.strip() if result.stderr.strip() else 'No specific error message from xdg-open. Check logs.'}")
+                
+                except FileNotFoundError:
+                    # xdg-open command not found, fall back to QDesktopServices
+                    logger.warning("xdg-open command not found. Falling back to QDesktopServices.")
+                    qurl_path = QUrl.fromLocalFile(real_path if 'real_path' in locals() else self.log_path)
+                    logger.info(f"Attempting to open with QDesktopServices using URL: {qurl_path.toString()}")
+                    
+                    if QDesktopServices.openUrl(qurl_path):
+                        logger.info(f"Successfully initiated opening using QDesktopServices.")
+                    else:
+                        logger.error(f"QDesktopServices.openUrl failed for {qurl_path.toString()}")
+                        
+                        if is_appimage:
+                            # In AppImage, try to use a more direct approach
+                            logger.info("AppImage environment detected - trying to display file content directly after QDesktopServices failed")
+                            self.show_log_content_dialog()
+                        else:
+                            QMessageBox.warning(self, "Error", "Could not open log file: xdg-open command not found and QDesktopServices failed to launch a handler.")
+                
+                except Exception as e_os_open:
+                    # Catch any other unexpected error during xdg-open attempt or QDesktopServices fallback
+                    logger.error(f"An unexpected error occurred while trying to open the log file on Linux: {str(e_os_open)}")
+                    
+                    if is_appimage:
+                        # In AppImage, try to use a more direct approach
+                        logger.info("AppImage environment detected - trying to display file content directly after exception")
+                        self.show_log_content_dialog()
+                    else:
+                        QMessageBox.warning(self, "Error", f"Could not open log file: {str(e_os_open)}")
+                        
+        except subprocess.CalledProcessError as e_sub: # For macOS or Windows if os.startfile/subprocess.run(check=True) fails
+            logger.error(f"CalledProcessError when trying to open log file: {str(e_sub)}")
+            QMessageBox.warning(self, "Error", f"Could not open log file: {str(e_sub)}")
+        except Exception as e:
+            logger.error(f"General error when trying to open log file: {str(e)}")
+            QMessageBox.warning(self, "Error", f"Could not open log file: {str(e)}")
+            
+    def show_log_content_dialog(self):
+        """
+        Open a separate dialog to show log content when external viewer can't be launched.
+        This is particularly useful in AppImage environments where accessing external files is restricted.
+        """
+        try:
+            # Read the log file content
+            with open(self.log_path, 'r') as f:
+                content = f.read()
+                
+            # Create a simple dialog with the content
+            content_dialog = QDialog(self)
+            content_dialog.setWindowTitle(f"Log File: {os.path.basename(self.log_path)}")
+            content_dialog.resize(800, 600)
+            
+            layout = QVBoxLayout(content_dialog)
+            
+            # Path information
+            path_label = QLabel(f"Path: {self.log_path}")
+            path_label.setStyleSheet("color: #8a8a8a; font-size: 10px;")
+            path_label.setWordWrap(True)
+            
+            # Text display
+            text_display = QTextEdit()
+            text_display.setReadOnly(True)
+            text_display.setLineWrapMode(QTextEdit.NoWrap)
+            text_display.setStyleSheet("""
+                background-color: #1a1a1a;
+                color: #e0e0e0;
+                font-family: monospace;
+                padding: 8px;
+            """)
+            text_display.setText(content)
+            
+            # Buttons
+            button_layout = QHBoxLayout()
+            copy_button = QPushButton("Copy to Clipboard")
+            copy_button.clicked.connect(lambda: QApplication.clipboard().setText(content))
+            
+            close_button = QPushButton("Close")
+            close_button.clicked.connect(content_dialog.accept)
+            
+            button_layout.addWidget(copy_button)
+            button_layout.addStretch(1)
+            button_layout.addWidget(close_button)
+            
+            # Add to layout
+            layout.addWidget(path_label)
+            layout.addWidget(text_display, 1)
+            layout.addLayout(button_layout)
+            
+            # Apply parent styling
+            content_dialog.setStyleSheet(self.styleSheet())
+            
+            # Show the dialog
+            content_dialog.exec()
+            logger.info("Displayed log content in a separate dialog")
+            
+        except Exception as e:
+            logger.error(f"Error showing log content dialog: {str(e)}")
+            QMessageBox.warning(self, "Error", f"Could not display log content: {str(e)}")
+        
 
 class FFmpegDownloadDialog(QDialog):
     """Dialog for downloading FFmpeg"""
