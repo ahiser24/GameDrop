@@ -31,13 +31,14 @@ Revolutionize Your Gameplay Highlights with Smart Clipping and Seamless Discord 
 ## Download
 
 #### Windows
-1. **Windows Installer (v1.0.0):** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/download/v1.0.0/GameDrop_Setup.zip)
+1. **Windows Installer (v1.1.0.0):** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/latest)
 2. Extract the files
 3. Run the installer and follow the on-screen instructions
 4. Launch Game Drop
+5. If prompted for FFMPEG, click YES to download. It will be downloaded to your %APPDATA%\GameDrop folder.
 
 #### Linux & Steam Deck
-1. **Linux Version (v1.0.0):** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/download/v1.0.0/GameDrop_Setup.tar.gz)
+1. **Linux Version (v1.1.0.0):** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/latest)
 2. Extract the files
 3. Run install_GameDrop.sh and follow the on-screen instructions
 4. Launch Game Drop
@@ -83,11 +84,12 @@ Revolutionize Your Gameplay Highlights with Smart Clipping and Seamless Discord 
 
 ## Troubleshooting
 
-- **FFmpeg Missing**: Game Drop will automatically download and install FFmpeg if it's not detected
+- **Locating Log Files** Log files can be found in Windows: **%APPDATA%\GameDrop\Logs**. For Linux: **~/.config/gamedrop/logs**
+- **FFmpeg Missing**: Game Drop will automatically download and install FFmpeg if it's not detected. If not, you can download it here: https://ffmpeg.org
 - **Video Won't Load**: Make sure your video is in a supported format (MP4, AVI, MKV, MOV)
-- **Discord Upload Failing**: Verify your webhook URL and internet connection
-- **Quality Issues**: For better quality but larger files, uncheck the Discord limit and select a higher file size
-- **Hardware Acceleration Not Working**: Update your graphics drivers
+- **Discord Upload Failing**: Verify your webhook URL and internet connection. Check the logs. If the file size is larger than 10MB it will fail to send via the webhook. This is a Discord limitation. If you have Nitro, you can still upload the video into Discord manually.
+- **Quality Issues**: Quality loss is to be expected when compressing a video and lowering bitrates. You can always set a custom target size for your file to try and maintain more of that quality while clipping and compressing the file still.
+- **Hardware Acceleration Not Working**: Please make sure your graphics drivers are up to date. If you don't have a GPU, software encoding should automatically run for you.
 
 ## Project Structure
 
