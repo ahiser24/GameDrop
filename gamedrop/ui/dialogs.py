@@ -395,18 +395,105 @@ class LogViewerDialog(QDialog):
             QMessageBox.warning(self, "Error", "Log file not found")
             return
             
+        logger.info(f"Attempting to open log file: {self.log_path}")
+        
         try:
             # Use QDesktopServices for cross-platform and sandbox compatibility
             # This is more reliable than os.startfile or subprocess.run in sandboxed environments like MSIX
             qurl_path = QUrl.fromLocalFile(self.log_path)
+            logger.debug(f"QUrl path: {qurl_path.toString()}")
             
-            if not QDesktopServices.openUrl(qurl_path):
-                logger.error(f"QDesktopServices.openUrl failed for {qurl_path.toString()}")
-                QMessageBox.warning(self, "Error", "Could not open the log file with the default application.")
+            if QDesktopServices.openUrl(qurl_path):
+                logger.info(f"Successfully opened log file with QDesktopServices: {self.log_path}")
+                return
+            else:
+                logger.warning(f"QDesktopServices.openUrl returned False for {qurl_path.toString()}")
+                # Try Linux-specific fallbacks
+                if self._try_linux_text_editors():
+                    return
+                
+                # If all methods fail, show an informative error message
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("Unable to Open Log File")
+                msg.setText("Could not open the log file automatically.")
+                msg.setInformativeText(f"You can manually open the log file at:\n{self.log_path}")
+                msg.setDetailedText("The system could not find a suitable application to open .log files. "
+                                   "You can copy the path above and open it with your preferred text editor.")
+                msg.exec()
 
         except Exception as e:
-            logger.error(f"General error when trying to open log file: {str(e)}")
-            QMessageBox.warning(self, "Error", f"Could not open log file: {str(e)}")
+            logger.error(f"Exception when trying to open log file with QDesktopServices: {str(e)}")
+            # Try Linux-specific fallbacks on exception too
+            if sys.platform.startswith('linux') and self._try_linux_text_editors():
+                return
+                
+            # Show error with file path for manual opening
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("Error Opening Log File")
+            msg.setText(f"An error occurred while trying to open the log file: {str(e)}")
+            msg.setInformativeText(f"You can manually open the log file at:\n{self.log_path}")
+            msg.exec()
+    
+    def _try_linux_text_editors(self):
+        """Try to open the log file with common Linux text editors"""
+        if not sys.platform.startswith('linux'):
+            return False
+            
+        # List of common Linux text editors to try, in order of preference
+        editors = [
+            'xdg-open',     # Standard Linux command to open files
+            'gedit',        # GNOME text editor
+            'kate',         # KDE text editor
+            'mousepad',     # XFCE text editor
+            'leafpad',      # Lightweight text editor
+            'nano',         # Terminal-based editor (will open in terminal)
+            'vim',          # Terminal-based editor (will open in terminal)
+            'emacs',        # Terminal-based editor (will open in terminal)
+        ]
+        
+        for editor in editors:
+            try:
+                # Check if the editor is available
+                result = subprocess.run(['which', editor], 
+                                      capture_output=True, 
+                                      text=True, 
+                                      timeout=5)
+                if result.returncode == 0:
+                    logger.info(f"Trying to open log file with {editor}")
+                    
+                    # For terminal editors, try to open in a new terminal window
+                    if editor in ['nano', 'vim', 'emacs']:
+                        # Try common terminal emulators
+                        terminals = ['gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm']
+                        for terminal in terminals:
+                            try:
+                                term_check = subprocess.run(['which', terminal], 
+                                                          capture_output=True, 
+                                                          text=True, 
+                                                          timeout=5)
+                                if term_check.returncode == 0:
+                                    subprocess.Popen([terminal, '-e', editor, self.log_path])
+                                    logger.info(f"Opened log file with {terminal} + {editor}")
+                                    return True
+                            except Exception:
+                                continue
+                    else:
+                        # For GUI editors, open directly
+                        subprocess.Popen([editor, self.log_path])
+                        logger.info(f"Opened log file with {editor}")
+                        return True
+                        
+            except subprocess.TimeoutExpired:
+                logger.debug(f"Timeout checking for {editor}")
+                continue
+            except Exception as e:
+                logger.debug(f"Failed to check/open with {editor}: {str(e)}")
+                continue
+        
+        logger.warning("No suitable text editor found for opening log file")
+        return False
 
 
 class FFmpegDownloadDialog(QDialog):
