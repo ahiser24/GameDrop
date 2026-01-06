@@ -1,157 +1,104 @@
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/andrewhiser)
+
 <p align="center">
   <img src="gamedrop/assets/logo.png" alt="Game Drop Logo" width="150">
 </p>
 
 
-## <p style="text-align: center;">Game Drop</p>
 
-Revolutionize Your Gameplay Highlights with Smart Clipping and Seamless Discord Sharing!
+### <p align="center">Stop Waiting. Stop Paying. Start Sharing.</p>
 
+**Game Drop** is a high-performance, open-source tool built to solve the #1 frustration for gamers: **The Discord File Limit.** While web-based tools make you wait in queues, upload private data, and charge for "priority access," Game Drop uses the raw power of your own GPU to compress and send clips to Discord in seconds—locally, privately, and for free.
 
 <p align="center">
-  <img src="gamedrop/assets/Game Drop.png" alt="Game Drop Logo">
+  <img src="gamedrop/assets/Game Drop.png" alt="Game Drop Interface">
 </p>
 
-## Features
+---
 
-- **Video Clipping**: Easily select portions of your gameplay videos with precise control
-- **Discord-Optimized Compression**: Automatically targets Discord's 10MB file limit for direct sharing
-- **Hardware Acceleration**: Utilizes NVIDIA (NVENC), AMD (AMF), Intel, or VA-API GPU encoding
-- **Custom Export Options**: Adjustable file sizes and quality settings for non-Discord purposes
-- **One-click Discord Integration**: Send clips directly to your Discord servers via webhooks
-- **Cross-Platform Support**: Works on Windows, Linux, and Steam Deck
-- **Dark-mode Interface**: Clean, modern dark UI designed for gamers
+## 🏎️ The Ultimate Benchmark: Local GPU vs. The Web
 
-## Getting Started Video
+We tested Game Drop against the leading web alternative using a high-end gaming rig (**RTX 3080 Ti / Ryzen 7 7800X3D**) to see who handles a high-quality 1440p gaming highlight better. 
+
+### **The Source Clip**
+- **Original Resolution:** 2560 x 1440 (2K)
+- **Length:** 51 seconds
+- **Frame Rate:** 60 FPS
+- **Bitrate:** ~27 Mbps
+- **File Size:** 179.9 MB
+
+### **Performance Comparison**
+We separated **Transcode Time** from **Wait Time** to show the true speed of local hardware. Even if you "Skip the Line" on a web service, their servers still can't keep up with your local GPU.
+
+| Metric | **8mb.video** (Web) | **Game Drop** (Local) | The Advantage |
+| :--- | :--- | :--- | :--- |
+| **Wait Time (22 in Queue)** | 2m 19s | **0s (Instant)** | No waiting for servers |
+| **Transcode Time** | 1m 03s | **0m 29s** | **2.1x faster encoding** |
+| **Total Time** | **~3m 22s** | **0m 29s** | **~7x faster overall** |
+| **Output FPS** | 30 FPS (Choppy) | **60 FPS (Smooth)** | Better viewing experience |
+| **Workflow** | Manual Up/Down/Up | **1-Click Auto-Send** | Zero friction |
+| **Cost** | $$$ for "Priority" | **Free** | Use the hardware you own |
+
+---
+
+## 📽️ See It In Action
 [![Watch the video](https://img.youtube.com/vi/fFhfKb545To/maxresdefault.jpg)](https://www.youtube.com/watch?v=fFhfKb545To)
 
 
-### Installation
-## Download
+---
 
-#### Windows
-1. **Windows Installer (v1.1.0.0):** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/latest)
-2. Extract the files
-3. Run the installer and follow the on-screen instructions
-4. Launch Game Drop
-5. If prompted for FFMPEG, click YES to download. It will be downloaded to your %APPDATA%\GameDrop folder.
+## 🔥 Why Choose Game Drop?
 
-#### Linux & Steam Deck
-1. **Linux Version (v1.1.0.0):** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/latest)
-2. Extract the files
-3. Run install_GameDrop.sh and follow the on-screen instructions
-4. Launch Game Drop
+- **⚡ Instant Processing**: No queues, no "Waiting in Line," and no uploading large source files. Your 30-second transcode starts the moment you click "Drop It."
+- **🎮 Preserve the Quality**: Most web tools cut your frame rate in half (30 FPS) to save on size. Game Drop prioritizes your GPU's power to keep your clips at a buttery-smooth **60 FPS**.
+- **🤖 Smart Scaling**: Our system automatically targets the Discord limit, starting at your original resolution and only scaling down (1080p -> 720p -> 480p) if strictly necessary to fit the file size.
+- **📡 Discord Native Integration**: Don't just compress—**send**. Game Drop automatically pings your clips directly to your server(s) via Webhooks.
+- **🔒 Privacy First**: Your gaming highlights never touch a cloud server until they hit Discord. All processing happens 100% locally on your machine.
+- **📟 Steam Deck & Linux Ready**: Optimized performance for the best handheld and desktop gaming environments.
 
-### Using Game Drop
-1. Click **Load Video** to open a gameplay video file
-2. Use the slider to select the start and end points of your clip
-3. For Discord sharing without Nitro:
-   - Keep "Opitimize for discord" checked
-   - (Optional) Set up Discord webhooks by clicking **Manage Webhooks**
-   - Add an optional custom clip name
-4. For longer clips:
-   - Uncheck "Opitimize for discord" to access size and quality options
-   - Select your desired file size or enter a custom value
-   - Add an optional custom clip name
-5. Click **Drop It** to create your clip (and send to Discord if webhooks are configured)
+---
 
-### Setting Up Discord Webhooks
-
-1. In your Discord server, go to **Server Settings** > **Integrations** > **Webhooks**
-2. Click **New Webhook**, give it a name, and select the channel where clips will be posted
-3. Copy the webhook URL
-4. In Game Drop, click **Manage Webhooks**, then **Add Webhook**
-5. Enter a name for the webhook and paste the URL
-
-## System Requirements
+## 🚀 Download & Setup
 
 ### Windows
-- Windows 10 or later
-- 4GB RAM (8GB recommended)
-- DirectX 11 compatible graphics card
-- FFmpeg (automatically downloaded if not found)
+1. **Windows Installer:** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/latest)
+2. Extract and run the installer.
+3. If prompted for FFmpeg, click **YES** to automatically download it to %APPDATA%\GameDrop folder.
 
-### Linux
-- Modern Linux x64 distribution (Ubuntu 20.04+, Arch, Fedora 34+, SteamOS)
-- 4GB RAM (8GB recommended)
-- Mesa drivers for AMD/Intel GPUs or NVIDIA proprietary drivers
-- FFmpeg (automatically downloaded if not found)
+### Linux & Steam Deck
+1. **Linux Version:** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/latest)
+2. Extract the files and run `install_GameDrop.sh`.
+3. Launch the AppImage
 
-### Recommended
-- NVIDIA, AMD, or Intel GPU that supports hardware-accelerated H.264 encoding
-- Internet connection for Discord uploads
+---
 
-## Troubleshooting
+## 🛠️ How to Use
 
-- **Locating Log Files** Log files can be found in Windows: **%APPDATA%\GameDrop\Logs**. For Linux: **~/.config/gamedrop/logs**
-- **FFmpeg Missing**: Game Drop will automatically download and install FFmpeg if it's not detected. If not, you can download it here: https://ffmpeg.org
-- **Video Won't Load**: Make sure your video is in a supported format (MP4, AVI, MKV, MOV)
-- **Discord Upload Failing**: Verify your webhook URL and internet connection. Check the logs. If the file size is larger than 10MB it will fail to send via the webhook. This is a Discord limitation. If you have Nitro, you can still upload the video into Discord manually.
-- **Quality Issues**: Quality loss is to be expected when compressing a video and lowering bitrates. You can always set a custom target size for your file to try and maintain more of that quality while clipping and compressing the file still.
-- **Hardware Acceleration Not Working**: Please make sure your graphics drivers are up to date. If you don't have a GPU, software encoding should automatically run for you.
+1. **Load Video**: Open your raw gameplay recording.
+2. **Select Range**: Use the visual slider to select the start and end of your highlight.
+3. **Drop It**: 
+   - Check "Optimize for discord" (Targets <10MB).
+   - Click **Drop It**.
+4. **Automated Share**: Game Drop will automatically send the video to all checked webhooks.
 
-## Project Structure
+### Setting Up Discord Webhooks
+1. In Discord: **Server Settings** > **Integrations** > **Webhooks** > **New Webhook**.
+2. Copy the Webhook URL.
+3. In Game Drop: Click **Manage Webhooks** > **Add Webhook** and paste your URL.
 
-The application follows a modular architecture for better maintainability:
+---
 
-```
-gamedrop/
-  ├── __main__.py                 # Application entry point
-  ├── version.py                  # Sets the version number
-  ├── core/                       # Core functionality
-  │   ├── app_controller.py       # Main application controller
-  │   ├── media_controller.py     # Video playback functionality
-  │   └── video_processor.py      # Video compression and export
-  ├── platform_utils/             # Platform detection utilities
-  ├── ui/                         # User interface components
-  │   ├── dialogs.py              # Dialog windows
-  │   ├── main_window.py          # Main application window
-  │   └── range_slider.py         # Custom slider for selecting clip range
-  └── utils/                      # Utility modules
-      ├── ffmpeg_wrapper.py       # FFmpeg integration
-      ├── gpu/                    # GPU detection and selection
-      └── paths.py                # Resource path handling
-```
+## 💻 System Requirements
 
-## Development
+- **OS**: Windows 10+ or Modern Linux (Ubuntu 20.04+, Arch/CachyOS, Fedora 34+, SteamOS).
+- **GPU**: NVIDIA, AMD, or Intel GPU with hardware-accelerated H.264 encoding support (NVENC/AMF/VA-API).
+- **Internet**: Required for Discord uploads.
 
-### Prerequisites
+---
 
-- Python 3.8 or later
-- PySide6 (Qt for Python)
-- FFmpeg (automatically downloaded if not present)
+## 📜 License & Disclaimers
+This project is licensed under the **MIT License**.
 
-### Setup
-
-1. Clone the repository:
-```bash
-git clone https://github.com/ahiser24/gamedrop.git
-cd gamedrop
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Run the application:
-```bash
-python game_drop.py
-```
-
-### Building
-
-#### Windows Executable
-- Run build_windows.bat
-- To create an installer, run the GameDrop.iss file with Inno Installer
-
-#### Linux AppImage
-- Run build_appimage.sh
-- To create .desktop file, run install_gamedrop.sh
-
-See [REBUILD_APPIMAGE.md](REBUILD_APPIMAGE.md) for detailed Linux build instructions.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+**Disclaimers:**
+* **8mb.video** is a trademark of its respective owners. Game Drop is not affiliated with, endorsed by, or sponsored by 8mb.video. Benchmarks reflect performance as of January 2026.
+* **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
