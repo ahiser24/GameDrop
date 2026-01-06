@@ -16,7 +16,7 @@
 
 ---
 
-## 🏎️ The Ultimate Benchmark: Local GPU vs. The Web
+## The Ultimate Benchmark: Local GPU vs. The Web
 
 We tested Game Drop against the leading web alternative using a high-end gaming rig (**RTX 3080 Ti / Ryzen 7 7800X3D**) to see who handles a high-quality 1440p gaming highlight better. 
 
@@ -41,24 +41,24 @@ We separated **Transcode Time** from **Wait Time** to show the true speed of loc
 
 ---
 
-## 📽️ See It In Action
+## See It In Action
 [![Watch the video](https://img.youtube.com/vi/fFhfKb545To/maxresdefault.jpg)](https://www.youtube.com/watch?v=fFhfKb545To)
 
 
 ---
 
-## 🔥 Why Choose Game Drop?
+## Why Choose Game Drop?
 
-- **⚡ Instant Processing**: No queues, no "Waiting in Line," and no uploading large source files. Your 30-second transcode starts the moment you click "Drop It."
-- **🎮 Preserve the Quality**: Most web tools cut your frame rate in half (30 FPS) to save on size. Game Drop prioritizes your GPU's power to keep your clips at a buttery-smooth **60 FPS**.
-- **🤖 Smart Scaling**: Our system automatically targets the Discord limit, starting at your original resolution and only scaling down (1080p -> 720p -> 480p) if strictly necessary to fit the file size.
-- **📡 Discord Native Integration**: Don't just compress—**send**. Game Drop automatically pings your clips directly to your server(s) via Webhooks.
-- **🔒 Privacy First**: Your gaming highlights never touch a cloud server until they hit Discord. All processing happens 100% locally on your machine.
-- **📟 Steam Deck & Linux Ready**: Optimized performance for the best handheld and desktop gaming environments.
+- **Instant Processing**: No queues, no "Waiting in Line," and no uploading large source files. Your 30-second transcode starts the moment you click "Drop It."
+- **Preserve the Quality**: Most web tools cut your frame rate in half (30 FPS) to save on size. Game Drop prioritizes your GPU's power to keep your clips at a buttery-smooth **60 FPS**.
+- **Smart Scaling**: Our system automatically targets the Discord limit, starting at your original resolution and only scaling down (1080p -> 720p -> 480p) if strictly necessary to fit the file size.
+- **Discord Native Integration**: Don't just compress—**send**. Game Drop automatically pings your clips directly to your server(s) via Webhooks.
+- **Privacy First**: Your gaming highlights never touch a cloud server until they hit Discord. All processing happens 100% locally on your machine.
+- **Steam Deck & Linux Ready**: Optimized performance for the best handheld and desktop gaming environments.
 
 ---
 
-## 🚀 Download & Setup
+## Download & Setup
 
 ### Windows
 1. **Windows Installer:** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/latest)
@@ -72,7 +72,7 @@ We separated **Transcode Time** from **Wait Time** to show the true speed of loc
 
 ---
 
-## 🛠️ How to Use
+## How to Use
 
 1. **Load Video**: Open your raw gameplay recording.
 2. **Select Range**: Use the visual slider to select the start and end of your highlight.
@@ -88,7 +88,7 @@ We separated **Transcode Time** from **Wait Time** to show the true speed of loc
 
 ---
 
-## 💻 System Requirements
+## System Requirements
 
 - **OS**: Windows 10+ or Modern Linux (Ubuntu 20.04+, Arch/CachyOS, Fedora 34+, SteamOS).
 - **GPU**: NVIDIA, AMD, or Intel GPU with hardware-accelerated H.264 encoding support (NVENC/AMF/VA-API).
@@ -96,9 +96,10 @@ We separated **Transcode Time** from **Wait Time** to show the true speed of loc
 
 ---
 
-## 📜 License & Disclaimers
+## License & Disclaimers
 This project is licensed under the **MIT License**.
 
 **Disclaimers:**
 * **8mb.video** is a trademark of its respective owners. Game Drop is not affiliated with, endorsed by, or sponsored by 8mb.video. Benchmarks reflect performance as of January 2026.
 * **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
+
