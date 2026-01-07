@@ -18,7 +18,7 @@
 
 ## The Ultimate Benchmark: Local GPU vs. The Web
 
-We tested Game Drop against the leading web alternative using a high-end gaming rig (**RTX 3080 Ti / Ryzen 7 7800X3D**) to see who handles a high-quality 1440p gaming highlight better. 
+We tested Game Drop against the leading web alternative using a mid-range gaming rig (**RTX 3080 Ti / Ryzen 7 7800X3D**) to see who handles a high-quality 1440p gaming highlight better. 
 
 ### **The Source Clip**
 - **Original Resolution:** 2560 x 1440 (2K)
@@ -28,18 +28,16 @@ We tested Game Drop against the leading web alternative using a high-end gaming 
 - **File Size:** 179.9 MB
 
 ### **Performance Comparison**
-We separated **Transcode Time** from **Wait Time** to show the true speed of local hardware. Even if you "Skip the Line" on a web service, their servers still can't keep up with your local GPU.
+By separating **Transcode Time** from **Wait Time**, we can see the true speed of local encoding. Even if you bypass the queue on a web service, local hardware delivers a faster and higher-quality result.
 
-| Metric | **8mb.video** (Web) | **Game Drop** (Local) | The Advantage |
+| Metric | **Leading Web Tools** (Cloud) | **Game Drop** (Local) | The Advantage |
 | :--- | :--- | :--- | :--- |
-| **Wait Time (22 in Queue)** | 2m 19s | **0s (Instant)** | No waiting for servers |
+| **Wait Time (Queue)** | 2m 19s | **0s (Instant)** | No waiting for servers |
 | **Transcode Time** | 1m 03s | **0m 29s** | **2.1x faster encoding** |
 | **Total Time** | **~3m 22s** | **0m 29s** | **~7x faster overall** |
 | **Output FPS** | 30 FPS (Choppy) | **60 FPS (Smooth)** | Better viewing experience |
 | **Workflow** | Manual Up/Down/Up | **1-Click Auto-Send** | Zero friction |
 | **Cost** | $$$ for "Priority" | **Free** | Use the hardware you own |
-
----
 
 ## See It In Action
 [![Watch the video](https://img.youtube.com/vi/fFhfKb545To/maxresdefault.jpg)](https://www.youtube.com/watch?v=fFhfKb545To)
@@ -97,8 +95,7 @@ We separated **Transcode Time** from **Wait Time** to show the true speed of loc
 ## License & Disclaimers
 This project is licensed under the **MIT License**.
 
+
 **Disclaimers:**
-* **8mb.video** is a trademark of its respective owners. Game Drop is not affiliated with, endorsed by, or sponsored by 8mb.video. Benchmarks reflect performance as of January 2026.
+* Benchmarks reflect comparisons with popular web-based compression services as of January 2026.
 * **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
-
-
