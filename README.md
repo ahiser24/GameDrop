@@ -74,11 +74,9 @@ We separated **Transcode Time** from **Wait Time** to show the true speed of loc
 
 ## How to Use
 
-1. **Load Video**: Open your raw gameplay recording.
+1. **Load Video**: Select your raw gameplay recording.
 2. **Select Range**: Use the visual slider to select the start and end of your highlight.
-3. **Drop It**: 
-   - Check "Optimize for discord" (Targets <10MB).
-   - Click **Drop It**.
+3. **Drop It**: Start Transcoding
 4. **Automated Share**: Game Drop will automatically send the video to all checked webhooks.
 
 ### Setting Up Discord Webhooks
@@ -102,4 +100,5 @@ This project is licensed under the **MIT License**.
 **Disclaimers:**
 * **8mb.video** is a trademark of its respective owners. Game Drop is not affiliated with, endorsed by, or sponsored by 8mb.video. Benchmarks reflect performance as of January 2026.
 * **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
+
 
