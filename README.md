@@ -32,39 +32,43 @@ By separating **Transcode Time** from **Wait Time**, we can see the true speed o
 
 | Metric | **Leading Web Tools** (Cloud) | **Game Drop** (Local) | The Advantage |
 | :--- | :--- | :--- | :--- |
-| **Wait Time (Queue)** | 2m 19s | **0s (Instant)** | No waiting for servers |
-| **Transcode Time** | 1m 03s | **0m 29s** | **2.1x faster encoding** |
+| **Wait Time (Queue)** | ~2m 19s | **0s (Instant)** | No waiting for servers |
+| **Transcode Time** | ~1m 03s | **0m 29s** | **2.1x faster encoding** |
 | **Total Time** | **~3m 22s** | **0m 29s** | **~7x faster overall** |
 | **Output FPS** | 30 FPS (Choppy) | **60 FPS (Smooth)** | Better viewing experience |
 | **Workflow** | Manual Up/Down/Up | **1-Click Auto-Send** | Zero friction |
 | **Cost** | $$$ for "Priority" | **Free** | Use the hardware you own |
-
-## See It In Action
-[![Watch the video](https://img.youtube.com/vi/fFhfKb545To/maxresdefault.jpg)](https://www.youtube.com/watch?v=fFhfKb545To)
 
 
 ---
 
 ## Why Choose Game Drop?
 
-- **Instant Processing**: No queues, no "Waiting in Line," and no uploading large source files. Your 30-second transcode starts the moment you click "Drop It."
-- **Preserve the Quality**: Most web tools cut your frame rate in half (30 FPS) to save on size. Game Drop prioritizes your GPU's power to keep your clips at a buttery-smooth **60 FPS**.
-- **Smart Scaling**: Our system automatically targets the Discord limit, starting at your original resolution and only scaling down (1080p -> 720p -> 480p) if strictly necessary to fit the file size.
-- **Discord Native Integration**: Don't just compress—**send**. Game Drop automatically pings your clips directly to your server(s) via Webhooks.
-- **Privacy First**: Your gaming highlights never touch a cloud server until they hit Discord. All processing happens 100% locally on your machine.
-- **Steam Deck & Linux Ready**: Optimized performance for the best handheld and desktop gaming environments.
+- **Instant Processing**: No queues or uploading. Your 30-second transcode starts the moment you click "Drop It."
+- **Preserve the Quality**: Most tools cut frame rates to 30 FPS. Game Drop prioritizes GPU power to keep clips at 60 FPS.
+- **Smart Scaling**: Targets Discord's 10MB limit by dynamically adjusting resolution only when strictly necessary.
+- **Discord Integration**: Skip the upload download process. Automatically send clips directly to your servers via Webhooks.
+- **Privacy First**: Your gaming highlights stay local. Processing happens 100% on your machine.
+- **Handheld Ready**: Fully optimized for Steam Deck and Linux environments for the best mobile gaming support.
 
 ---
+
+
+## See It In Action
+[![Watch the video](https://img.youtube.com/vi/fFhfKb545To/maxresdefault.jpg)](https://www.youtube.com/watch?v=fFhfKb545To)
+
+
+
 
 ## Download & Setup
 
 ### Windows
-1. **Windows Installer:** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/latest)
+1. **Windows:** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/latest)
 2. Extract and run the installer.
 3. If prompted for FFmpeg, click **YES** to automatically download it to %APPDATA%\GameDrop folder.
 
 ### Linux & Steam Deck
-1. **Linux Version:** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/latest)
+1. **Linux & Steam Deck:** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/latest)
 2. Extract the files and run `install_GameDrop.sh`.
 3. Launch the AppImage
 
@@ -78,24 +82,36 @@ By separating **Transcode Time** from **Wait Time**, we can see the true speed o
 4. **Automated Share**: Game Drop will automatically send the video to all checked webhooks.
 
 ### Setting Up Discord Webhooks
-1. In Discord: **Server Settings** > **Integrations** > **Webhooks** > **New Webhook**.
-2. Copy the Webhook URL.
-3. In Game Drop: Click **Manage Webhooks** > **Add Webhook** and paste your URL.
+1. In Discord:
+2. Go to **Server Settings** > **Integrations** > **Webhooks**
+3. Click **New Webhook**, give it a name, and select the target channel
+4. Copy the Webhook URL.
+5. In Game Drop:
+6. Click **Manage Webhooks**, then  **Add Webhook**
+7. Enter a nickname and paste your copied URL.
+8. Toggle the checkbox to enable sharing to that channel.
 
 ---
 
-## System Requirements
+## SYSTEM REQUIREMENTS
 
-- **OS**: Windows 10+ or Modern Linux (Ubuntu 20.04+, Arch/CachyOS, Fedora 34+, SteamOS).
-- **GPU**: NVIDIA, AMD, or Intel GPU with hardware-accelerated H.264 encoding support (NVENC/AMF/VA-API).
-- **Internet**: Required for Discord uploads.
+### MINIMUM REQUIREMENTS
+**Requires a 64-bit processor and operating system**
+
+* **OS:** Windows 10 or Modern Linux (Ubuntu, Arch, SteamOS)
+* **PROCESSOR:** 64-bit Multi-core Processor
+* **MEMORY:** 4 GB RAM
+* **GRAPHICS:** Integrated Graphics (NVIDIA NVENC, AMD AMF, or VA-API support recommended)
+* **NETWORK:** Broadband Internet connection to send data to Discord
+* **STORAGE:** 500 MB available space
+
+**ADDITIONAL NOTES:**
+*Software encoding (CPU-only) is supported but significantly slower without a supported GPU.*
 
 ---
 
 ## License & Disclaimers
-This project is licensed under the **MIT License**.
-
-
-**Disclaimers:**
+* This project is licensed under the **MIT License**.
 * Benchmarks reflect comparisons with popular web-based compression services as of January 2026.
 * **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
+
