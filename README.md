@@ -69,8 +69,8 @@ By separating **Transcode Time** from **Wait Time**, we can see the true speed o
 
 ### Linux & Steam Deck
 1. **Linux & Steam Deck:** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/latest)
-2. Extract the files and run `install_GameDrop.sh`.
-3. Launch the AppImage
+2. Extract the files 
+3. Launch the AppImage or run `install_GameDrop.sh` to create a .desktop file in ${HOME}/.local/share/applications.
 
 ---
 
@@ -114,4 +114,5 @@ By separating **Transcode Time** from **Wait Time**, we can see the true speed o
 * This project is licensed under the **MIT License**.
 * Benchmarks reflect comparisons with popular web-based compression services as of January 2026.
 * **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
+
 
