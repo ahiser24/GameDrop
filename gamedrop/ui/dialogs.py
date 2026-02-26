@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
 from PySide6.QtGui import QIcon, QDesktopServices
 from PySide6.QtCore import QUrl
 from gamedrop.utils.paths import resource_path, get_logs_directory, get_webhooks_path
+from gamedrop.utils.ffmpeg_wrapper import get_ffmpeg_download_info
 
 # Configure logging for this module
 logger = logging.getLogger("GameDrop.UI.Dialogs")
@@ -614,10 +615,13 @@ class FFmpegDownloadDialog(QDialog):
         layout.setSpacing(10)
         
         # Message
+        url, install_dir = get_ffmpeg_download_info()
         label = QLabel(
-            "FFmpeg is required for video clipping and compression.\n\n" +
-            "FFmpeg was not found on your system.\n" +
-            "Would you like to download and install FFmpeg now?\n\n" +
+            "FFmpeg is required for video clipping and compression.\n\n"
+            "FFmpeg was not found on your system.\n"
+            "Would you like to download and install FFmpeg now?\n\n"
+            f"Download from:\n{url}\n\n"
+            f"Install location:\n{install_dir}\n\n"
             "You can also install FFmpeg manually and restart the app."
         )
         label.setWordWrap(True)

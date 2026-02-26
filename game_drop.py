@@ -1,4 +1,3 @@
-#!/usr/bin/env pythonhttp://192.168.86.10:90/#/
 """
 Game Drop Launcher
 ------------------

@@ -78,7 +78,7 @@ logger = logging.getLogger("GameDrop.FFmpeg")
 def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, codec, bitrate,
                      resolution, ffmpeg_path, pass_num,
                      passlog_file, single_pass_progress_callback=None,
-                     hwaccel_args=None, current_codec_for_pass=None):
+                     hwaccel_args=None, current_codec_for_pass=None, crop_mode=None, extra_quality=False):
     """
     Executes a single FFmpeg encoding pass.
     For pass 1, output_path_or_null should be the system's null device path.
@@ -126,6 +126,9 @@ def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, code
             break
 
     if active_codec in ["h264_vaapi", "hevc_vaapi"]:
+        if crop_mode == "vertical": vf_options.append('crop=ih*9/16:ih')
+        elif crop_mode == "landscape": vf_options.append('crop=ih*16/9:ih')
+
         # All VA-API encoders need the proper hardware upload pipeline
         if not any('format=nv12' in opt for opt in vf_options): 
             vf_options.append('format=nv12')
@@ -133,14 +136,20 @@ def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, code
             vf_options.append('hwupload')
         
         if resolution: # VA-API scaling
+            w, h = resolution.split("x")
             if is_steam_deck():
                 # Steam Deck: use simpler scale_vaapi without explicit format parameter
-                vf_options.append(f'scale_vaapi=w={resolution.split("x")[0]}:h={resolution.split("x")[1]}')
+                vf_options.append(f'scale_vaapi=w={w}:h={h}')
             else:
                 # Other Linux systems: use full scale_vaapi with format
-                vf_options.append(f'scale_vaapi=w={resolution.split("x")[0]}:h={resolution.split("x")[1]}:format=nv12')
-    elif resolution: # Non-VAAPI scaling
-        vf_options.append(f'scale={resolution}')
+                vf_options.append(f'scale_vaapi=w={w}:h={h}:format=nv12')
+    else:
+        if crop_mode == "vertical": vf_options.append('crop=ih*9/16:ih')
+        elif crop_mode == "landscape": vf_options.append('crop=ih*16/9:ih')
+
+        if resolution: # Non-VAAPI scaling
+            w, h = resolution.split('x')
+            vf_options.append(f'scale={w}:{h}:force_original_aspect_ratio=decrease')
 
     if vf_options: # Apply collected vf options
         final_vf_string = ','.join(filter(None, vf_options))
@@ -161,11 +170,14 @@ def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, code
     if bitrate != "0":
         # Default preset for libx264 and other standard encoders
         if active_codec not in ['h264_amf', 'hevc_amf', 'h264_vaapi', 'hevc_vaapi', 'h264_qsv', 'hevc_qsv']:
-            if '-preset' not in command: command.extend(['-preset', 'medium'])
+            preset = 'slow' if extra_quality else 'medium'
+            if '-preset' not in command: command.extend(['-preset', preset])
         elif 'amf' in active_codec: # AMD AMF
-            if '-quality' not in command: command.extend(['-quality', 'balanced'])
+            quality = 'quality' if extra_quality else 'balanced'
+            if '-quality' not in command: command.extend(['-quality', quality])
         elif 'qsv' in active_codec: # Intel QSV
-            if '-preset' not in command: command.extend(['-preset', 'medium']) # QSV also uses presets
+            preset = 'slow' if extra_quality else 'medium'
+            if '-preset' not in command: command.extend(['-preset', preset]) # QSV also uses presets
             # Consider adding QSV specific options like -look_ahead 0 if beneficial and not in hwaccel_args
         elif 'vaapi' in active_codec and is_steam_deck():
             # Steam Deck VA-API doesn't need special presets - keep it simple like original
@@ -212,6 +224,8 @@ def get_ffmpeg_path():
     if is_windows():
         local_ffmpeg = os.path.join(ffmpeg_dir, 'ffmpeg.exe')
         if os.path.exists(local_ffmpeg): return local_ffmpeg
+        ffmpeg_in_path = shutil.which("ffmpeg")
+        if ffmpeg_in_path: return ffmpeg_in_path
         if getattr(sys, 'frozen', False):
             appdata_path = os.path.join(os.getenv('APPDATA'), 'GameDrop', 'ffmpeg')
             os.makedirs(appdata_path, exist_ok=True)
@@ -282,9 +296,19 @@ def download_ffmpeg(progress_callback=None):
     finally:
         if os.path.exists(download_path): os.remove(download_path)
 
+def get_ffmpeg_download_info():
+    """Return (download_url, install_directory) for the current platform."""
+    ffmpeg_path = get_ffmpeg_path()
+    ffmpeg_dir = os.path.dirname(ffmpeg_path)
+    if is_windows():
+        return ("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", ffmpeg_dir)
+    elif is_linux():
+        return ("https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz", ffmpeg_dir)
+    return ("Unknown", ffmpeg_dir)
+
 def compress_and_send_video(input_path, start_time, end_time, output_path,
                           codec="h264", bitrate="1000k",
-                          resolution="1920x1080", progress_callback=None):
+                          resolution="1920x1080", progress_callback=None, crop_mode=None, discord_user=None, extra_quality=False):
 
     ffmpeg_path = get_ffmpeg_path()
     if not os.access(ffmpeg_path, os.X_OK):
@@ -344,17 +368,17 @@ def compress_and_send_video(input_path, start_time, end_time, output_path,
             null_dev = 'NUL' if is_windows() else '/dev/null'
             _ffmpeg_run_pass(input_path, start_time, end_time, null_dev,
                              effective_codec, bitrate, resolution, ffmpeg_path, 1, passlog_file,
-                             pass1_prog_cb, hwaccel_params_initial, effective_codec)
+                             pass1_prog_cb, hwaccel_params_initial, effective_codec, crop_mode, extra_quality)
 
             def pass2_prog_cb(p): progress_callback(int(50 + p * 0.5)) if progress_callback else None
             _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
                              effective_codec, bitrate, resolution, ffmpeg_path, 2, passlog_file,
-                             pass2_prog_cb, hwaccel_params_initial, effective_codec)
+                             pass2_prog_cb, hwaccel_params_initial, effective_codec, crop_mode, extra_quality)
         else: # Single-pass (VAAPI, stream copy, or other non-2-pass codecs like potentially some HW encoders if not libx264/x265)
             logger.info(f"Attempting single-pass encoding with codec {effective_codec}.")
             _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
                              effective_codec, bitrate, resolution, ffmpeg_path, 1, passlog_file, # Pass 1 signifies a complete single operation here
-                             progress_callback, hwaccel_params_initial, effective_codec)
+                             progress_callback, hwaccel_params_initial, effective_codec, crop_mode, extra_quality)
 
         if progress_callback: progress_callback(100)
         return True # Initial attempt successful
@@ -381,17 +405,17 @@ def compress_and_send_video(input_path, start_time, end_time, output_path,
                     null_dev = 'NUL' if is_windows() else '/dev/null'
                     _ffmpeg_run_pass(input_path, start_time, end_time, null_dev,
                                      current_codec_for_fallback, bitrate, resolution, ffmpeg_path, 1, passlog_file,
-                                     fb_p1_prog_cb, hwaccel_params_fallback, current_codec_for_fallback)
+                                     fb_p1_prog_cb, hwaccel_params_fallback, current_codec_for_fallback, crop_mode, extra_quality)
 
                     def fb_p2_prog_cb(p): progress_callback(int(50+p*0.5)) if progress_callback else None
                     _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
                                      current_codec_for_fallback, bitrate, resolution, ffmpeg_path, 2, passlog_file,
-                                     fb_p2_prog_cb, hwaccel_params_fallback, current_codec_for_fallback)
+                                     fb_p2_prog_cb, hwaccel_params_fallback, current_codec_for_fallback, crop_mode, extra_quality)
                 else: # Single-pass software fallback (likely for stream copy, though unusual to reach here for stream copy fail)
                     logger.info("Attempting single-pass software fallback encoding.")
                     _ffmpeg_run_pass(input_path, start_time, end_time, output_path,
                                      current_codec_for_fallback, bitrate, resolution, ffmpeg_path, 1, passlog_file,
-                                     progress_callback, hwaccel_params_fallback, current_codec_for_fallback)
+                                     progress_callback, hwaccel_params_fallback, current_codec_for_fallback, crop_mode, extra_quality)
 
                 if progress_callback: progress_callback(100)
                 return True # Fallback successful
@@ -411,14 +435,37 @@ def compress_and_send_video(input_path, start_time, end_time, output_path,
                 except OSError as ex:
                     logger.warning(f"Could not delete passlog file {log_path}: {ex}")
 
-def send_to_discord(file_path, webhook_url, title=None):
+def send_to_discord(file_path, webhook_url, title=None, discord_user=None):
     try:
         if not webhook_url: raise ValueError("Webhook URL is required")
         if not os.path.exists(file_path): raise FileNotFoundError(f"File not found: {file_path}")
         logger.info(f"Sending {os.path.basename(file_path)} to Discord ({os.path.getsize(file_path)/(1024*1024):.2f} MB)")
         with open(file_path, 'rb') as f:
-            payload = {'content': f"**{title}**"} if title else {}
-            r = requests.post(webhook_url, files={'file': f}, data=payload); r.raise_for_status()
+            payload = {}
+            if title or discord_user:
+                content_str = f"**{title}**" if title else ""
+                embeds = []
+                if discord_user:
+                    embeds.append({
+                        "author": {
+                            "name": f"Verified Creator: {discord_user['username']}",
+                            "icon_url": discord_user.get('avatar_url') if discord_user.get('avatar_url') else ""
+                        },
+                        "color": 5793266
+                    })
+                
+                payload_json = {"content": content_str}
+                if embeds:
+                    payload_json["embeds"] = embeds
+                
+                payload['payload_json'] = json.dumps(payload_json)
+                
+            if 'payload_json' in payload:
+                r = requests.post(webhook_url, files={'file': f}, data=payload)
+            else:
+                r = requests.post(webhook_url, files={'file': f})
+                
+            r.raise_for_status()
         logger.info(f"Successfully sent to Discord, status: {r.status_code}")
         return True
     except requests.exceptions.HTTPError as e:

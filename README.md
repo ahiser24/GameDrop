@@ -4,11 +4,9 @@
   <img src="gamedrop/assets/logo.png" alt="Game Drop Logo" width="150">
 </p>
 
-
-
 ### <p align="center">Stop Waiting. Stop Paying. Start Sharing.</p>
 
-**Game Drop** is a high-performance, open-source tool built to solve the #1 frustration for gamers: **The Discord File Limit.** While web-based tools make you wait in queues, upload private data, and charge for "priority access," Game Drop uses the raw power of your own GPU to compress and send clips to Discord in seconds—locally, privately, and for free.
+**Game Drop** is a high-performance, open-source tool built to solve the #1 frustration for gamers: **The Discord File Limit.** While web-based tools make you wait in queues, upload private data, and charge for "priority access," Game Drop uses the raw power of your own GPU to compress and send clips to Discord in seconds, locally, privately, and for free.
 
 <p align="center">
   <img src="gamedrop/assets/Game Drop.png" alt="Game Drop Interface">
@@ -39,80 +37,77 @@ By separating **Transcode Time** from **Wait Time**, we can see the true speed o
 | **Workflow** | Manual Up/Down/Up | **1-Click Auto-Send** | Zero friction |
 | **Cost** | $$$ for "Priority" | **Free** | Use the hardware you own |
 
-
 ---
 
-## Why Choose Game Drop?
+## Features
 
-- **Instant Processing**: No queues or uploading. Your 30-second transcode starts the moment you click "Drop It."
-- **Preserve the Quality**: Most tools cut frame rates to 30 FPS. Game Drop prioritizes GPU power to keep clips at 60 FPS.
-- **Smart Scaling**: Targets Discord's 10MB limit by dynamically adjusting resolution only when strictly necessary.
-- **Discord Integration**: Skip the upload download process. Automatically send clips directly to your servers via Webhooks.
-- **Privacy First**: Your gaming highlights stay local. Processing happens 100% on your machine.
-- **Handheld Ready**: Fully optimized for Steam Deck and Linux environments for the best mobile gaming support.
+- **Instant GPU Processing**: No queues. No uploads. Your transcode starts the moment you click "Drop It" using NVIDIA NVENC, AMD AMF, or Intel VA-API.
+- **Discord OAuth2 Integration**: Securely connect your Discord account for seamless, one-click sharing.
+- **Drag and Drop Videos**: Added a Drag and Drop feature to load videos into the player.
+- **Preserve Quality**: Priority GPU encoding keeps your clips at a smooth **60 FPS**, unlike web tools that often cap at 30 FPS.
+- **Smart Scaling & Formats**:
+  - **Original**: Maintain your aspect ratio including 21:9.
+  - **Landscape (16:9)**: Standard wide-screen.
+  - **Vertical (9:16)**: Perfect for TikTok, Reels, and YouTube Shorts.
+- **Extra Quality Mode**: Premium encoding path for maximum visual fidelity when file size isn't the only concern.
+- **Privacy First**: Your highlights never leave your machine until you send them. 100% local processing.
+- **Updates**: Never miss a feature. An option to check for updates is now available.
+- **FFmpeg Auto-Setup**: Don't worry about dependencies. Game Drop detects and offers to download FFmpeg automatically.
+- **Steam Deck Ready**: Fully optimized for Linux and SteamOS environments.
 
 ---
-
 
 ## See It In Action
 [![Watch the video](https://img.youtube.com/vi/fFhfKb545To/maxresdefault.jpg)](https://www.youtube.com/watch?v=fFhfKb545To)
 
-
-
+---
 
 ## Download & Setup
 
 ### Windows
-1. **Windows:** [Download GameDrop_Setup.zip](https://github.com/ahiser24/GameDrop/releases/latest)
-2. Extract and run the installer.
-3. If prompted for FFmpeg, click **YES** to automatically download it to %APPDATA%\GameDrop folder.
+1. **Download:** [GameDrop](https://github.com/ahiser24/GameDrop/releases/latest)
+2. Run the installer and launch the app.
+3. If prompted for FFmpeg, click **YES** to automatically set up the core engine.
 
 ### Linux & Steam Deck
-1. **Linux & Steam Deck:** [Download GameDrop_Setup.tar.gz](https://github.com/ahiser24/GameDrop/releases/latest)
-2. Extract the files 
-3. Launch the AppImage or run `install_GameDrop.sh` to create a .desktop file in ${HOME}/.local/share/applications.
+1. **Download:** [GameDrop](https://github.com/ahiser24/GameDrop/releases/latest)
+2. Right-click the file, go to **Properties > Permissions**, and check **Allow executing file as program**.
+3. Double-click to launch!
 
 ---
 
 ## How to Use
 
-1. **Load Video**: Select your raw gameplay recording.
-2. **Select Range**: Use the visual slider to select the start and end of your highlight.
-3. **Drop It**: Start Transcoding
-4. **Automated Share**: Game Drop will automatically send the video to all checked webhooks.
+1. **Connect Discord**: Click the Discord button to securely authorize Game Drop (one-time setup).
+2. **Load Video**: Drag your video directly into the player or click **Load Video**.
+3. **Select Range**: Use the dual-handle slider to crop the perfect moment.
+4. **Choose Format**: Select Original, Landscape, or **Vertical (Shorts)**.
+5. **Drop It**: Click the button to transcode. If "Send to Discord" is checked, it goes straight to your server!
 
-### Setting Up Discord Webhooks
-1. In Discord:
-2. Go to **Server Settings** > **Integrations** > **Webhooks**
-3. Click **New Webhook**, give it a name, and select the target channel
-4. Copy the Webhook URL.
-5. In Game Drop:
-6. Click **Manage Webhooks**, then  **Add Webhook**
-7. Enter a nickname and paste your copied URL.
-8. Toggle the checkbox to enable sharing to that channel.
+### Managing Webhooks
+For power users who want to send to multiple channels simultaneously:
+1. Go to **Server Settings > Integrations > Webhooks** in Discord.
+2. Create a Webhook and copy the URL.
+3. In Game Drop, click **Webhooks** to add and manage your destination channels.
 
 ---
 
 ## SYSTEM REQUIREMENTS
 
-### MINIMUM REQUIREMENTS
-**Requires a 64-bit processor and operating system**
+### MINIMUM
+- **OS:** Windows 10/11 or Modern Linux (Ubuntu, Arch, SteamOS)
+- **PROCESSOR:** 64-bit Multi-core CPU
+- **MEMORY:** 4 GB RAM
+- **GRAPHICS:** Integrated Graphics (NVIDIA NVENC, AMD AMF, or VA-API support recommended)
+- **STORAGE:** 500 MB available space
 
-* **OS:** Windows 10 or Modern Linux (Ubuntu, Arch, SteamOS)
-* **PROCESSOR:** 64-bit Multi-core Processor
-* **MEMORY:** 4 GB RAM
-* **GRAPHICS:** Integrated Graphics (NVIDIA NVENC, AMD AMF, or VA-API support recommended)
-* **NETWORK:** Broadband Internet connection to send data to Discord
-* **STORAGE:** 500 MB available space
-
-**ADDITIONAL NOTES:**
-*Software encoding (CPU-only) is supported but significantly slower without a supported GPU.*
+**NOTE:** *Software encoding (CPU-only) is supported but significantly slower than GPU acceleration.*
 
 ---
 
 ## License & Disclaimers
-* This project is licensed under the **MIT License**.
-* Benchmarks reflect comparisons with popular web-based compression services as of January 2026.
-* **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
+- This project is licensed under the **MIT License**.
+- Benchmarks reflect comparisons with popular web-based services as of early 2026.
+- **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
 
 

@@ -91,6 +91,21 @@ def resource_path(relative_path):
         if relative_path.startswith('assets/'):
             # In PyInstaller builds with the updated spec, assets are at the root
             return os.path.join(base_path, relative_path)
+        
+        # For non-asset paths (e.g. 'ui/styles.qss'), try the direct path first,
+        # then fall back to looking inside the 'gamedrop' subdirectory since
+        # the spec bundles the gamedrop package as 'gamedrop/' in _MEIPASS.
+        direct_path = os.path.join(base_path, relative_path)
+        if os.path.exists(direct_path):
+            return direct_path
+        
+        # Fallback: check inside the gamedrop subdirectory
+        gamedrop_path = os.path.join(base_path, 'gamedrop', relative_path)
+        if os.path.exists(gamedrop_path):
+            return gamedrop_path
+        
+        # Return direct path even if it doesn't exist (caller handles the error)
+        return direct_path
     except AttributeError:
         base_path = get_app_root()
     
@@ -157,7 +172,7 @@ def get_webhooks_path():
     Get the path to the webhooks.json configuration file.
     
     The location varies by operating system:
-    - Windows: Stored in %APPDATA%\GameDrop\webhooks.json for consistency
+    - Windows: Stored in %APPDATA%/GameDrop/webhooks.json for consistency
     - Linux: Stored in the logs directory (especially important for AppImage)
     
     Returns:

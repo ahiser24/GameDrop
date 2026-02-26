@@ -10,7 +10,7 @@ MAIN_SCRIPT="game_drop.py"
 PACKAGE_DIR="gamedrop"
 ASSETS_DIR="${PACKAGE_DIR}/assets"
 ICON_FILE="${ASSETS_DIR}/logo.png" # Use PNG for Linux icon
-VERSION="1.1.0" # Default version, can be overridden
+VERSION="1.2.0" # Default version, can be overridden
 
 # Allow version override from command line argument
 if [ ! -z "$1" ]; then
@@ -116,7 +116,7 @@ export QT_PLUGIN_PATH="\${HERE}/usr/bin/PySide6/plugins:\${QT_PLUGIN_PATH}" # He
 cd "\${HERE}/usr/bin"
 
 # Execute the main application binary
-# Pass all arguments ($@) to the application
+# Pass all arguments (\$@) to the application
 exec "./${APP_NAME}" "\$@"
 EOL
 chmod +x "$APPDIR/AppRun"

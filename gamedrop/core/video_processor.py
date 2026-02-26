@@ -67,6 +67,18 @@ DEFAULT_RESOLUTION_TIERS = [
     (640, 360, "360p")      # Low quality fallback
 ]
 
+ULTRAWIDE_RESOLUTION_TIERS = [
+    (2560, 1080, "UW-1080p"),
+    (1720, 720,  "UW-720p"),
+    (1140, 480,  "UW-480p"),
+]
+
+VERTICAL_RESOLUTION_TIERS = [
+    (1080, 1920, "V-1080p"),
+    (720, 1280,  "V-720p"),
+    (480, 854,   "V-480p"),
+]
+
 class VideoProcessor:
     """Video processor that handles video clipping, compression, and export."""
     
@@ -176,7 +188,7 @@ class VideoProcessor:
     
     def compress_clip(self, input_path, start_time, end_time, output_path, 
                      webhooks=None, max_size=10*1024*1024, clip_title=None, 
-                     progress_callback=None):
+                     progress_callback=None, output_format="Original", discord_user=None, extra_quality=False):
         """
         Process a video clip with dynamic scaling compression and optional Discord upload.
         
@@ -289,19 +301,55 @@ class VideoProcessor:
 
             original_resolution = self._get_video_resolution(input_path)
             
+            tiers_to_use = DEFAULT_RESOLUTION_TIERS
+            crop_mode = None
+            
+            if output_format == "Vertical (9:16)":
+                tiers_to_use = VERTICAL_RESOLUTION_TIERS
+                crop_mode = "vertical"
+            else:
+                if original_resolution and original_resolution[0] and original_resolution[1]:
+                    aspect_ratio = original_resolution[0] / original_resolution[1]
+                    if aspect_ratio >= 2.0:
+                        tiers_to_use = ULTRAWIDE_RESOLUTION_TIERS
+                        if output_format == "Landscape (16:9)":
+                            tiers_to_use = DEFAULT_RESOLUTION_TIERS
+                            crop_mode = "landscape"
+            
             actual_tiers_to_try = []
             # Use a set to keep track of resolutions already added to avoid duplicates by (width, height)
             added_resolutions = set()
 
             if original_resolution:
-                actual_tiers_to_try.append((*original_resolution, "original"))
-                added_resolutions.add((original_resolution[0], original_resolution[1]))
+                if output_format == "Original":
+                    actual_tiers_to_try.append((*original_resolution, "original"))
+                    added_resolutions.add((original_resolution[0], original_resolution[1]))
+                elif output_format == "Vertical (9:16)":
+                    h = original_resolution[1]
+                    w = int(h * 9 / 16)
+                    w = w if w % 2 == 0 else w - 1
+                    actual_tiers_to_try.append((w, h, "original_vertical"))
+                    added_resolutions.add((w, h))
+                elif output_format == "Landscape (16:9)" and crop_mode == "landscape":
+                    h = original_resolution[1]
+                    w = int(h * 16 / 9)
+                    w = w if w % 2 == 0 else w - 1
+                    actual_tiers_to_try.append((w, h, "original_landscape"))
+                    added_resolutions.add((w, h))
+                else: # Original format, but mapped to its AR
+                    actual_tiers_to_try.append((*original_resolution, "original"))
+                    added_resolutions.add((original_resolution[0], original_resolution[1]))
             
-            for res_w, res_h, res_label in DEFAULT_RESOLUTION_TIERS:
+            for res_w, res_h, res_label in tiers_to_use:
                 is_not_upscale = True
                 if original_resolution:
-                    # Only add if not an upscale
-                    if res_w > original_resolution[0] or res_h > original_resolution[1]:
+                    # Logic to avoid upscaling based on the target aspect ratio
+                    # For standard 16:9, height is the main constraint. 
+                    # For ultrawide, width might be the intended target.
+                    if res_w > original_resolution[0] and res_h > original_resolution[1]:
+                        is_not_upscale = False
+                    # Allow matching height if width is smaller, or vice-versa
+                    elif res_h > original_resolution[1]:
                         is_not_upscale = False
                 
                 if is_not_upscale:
@@ -381,7 +429,10 @@ class VideoProcessor:
                         codec=self.gpu_encoder,
                         bitrate=target_bitrate_str,
                         resolution=resolution_str,
-                        progress_callback=tier_ffmpeg_progress_callback
+                        progress_callback=tier_ffmpeg_progress_callback,
+                        crop_mode=crop_mode,
+                        discord_user=discord_user,
+                        extra_quality=extra_quality
                     )
 
                     if os.path.exists(temp_tier_output_path):
@@ -473,7 +524,8 @@ class VideoProcessor:
                         codec=self.gpu_encoder,
                         bitrate=final_bitrate_str,
                         resolution=final_res_str,
-                        progress_callback=final_pass_progress_callback
+                        progress_callback=final_pass_progress_callback,
+                        extra_quality=extra_quality
                     )
 
                     if os.path.exists(output_path):
@@ -522,22 +574,27 @@ class VideoProcessor:
             webhook_progress_budget = 100.0 - webhook_progress_start
 
             if webhooks:
-                try:
-                    logger.info(f"Sending clip to {len(webhooks)} enabled webhooks")
-                    # Simple progress for webhook: just jump to 100 on completion or partway on start
-                    if progress_callback:
-                        progress_callback(int(webhook_progress_start + webhook_progress_budget / 2))
+                # SAFETY CHECK: Discord strict limit
+                if final_file_size > 10 * 1024 * 1024:
+                    logger.warning(f"File size ({final_file_size}) exceeds Discord 10MB limit. Skipping upload.")
+                    webhook_success = False 
+                else:
+                    try:
+                        logger.info(f"Sending clip to {len(webhooks)} enabled webhooks")
+                        # Simple progress for webhook: just jump to 100 on completion or partway on start
+                        if progress_callback:
+                            progress_callback(int(webhook_progress_start + webhook_progress_budget / 2))
 
-                    for webhook_url in webhooks:
-                        logger.info(f"Sending to webhook: {webhook_url[:30]}...")
-                        send_result = send_to_discord(output_path, webhook_url, clip_title)
-                        if send_result:
-                            webhook_success = True # At least one succeeded
-                            logger.info(f"Clip sent to Discord webhook successfully")
-                        else:
-                            logger.error(f"Failed to send clip to webhook: {webhook_url[:30]}")
-                except Exception as e:
-                    logger.error(f"Error sending to Discord: {str(e)}")
+                        for webhook_url in webhooks:
+                            logger.info(f"Sending to webhook: {webhook_url[:30]}...")
+                            send_result = send_to_discord(output_path, webhook_url, clip_title, discord_user)
+                            if send_result:
+                                webhook_success = True # At least one succeeded
+                                logger.info(f"Clip sent to Discord webhook successfully")
+                            else:
+                                logger.error(f"Failed to send clip to webhook: {webhook_url[:30]}")
+                    except Exception as e:
+                        logger.error(f"Error sending to Discord: {str(e)}")
             elif not webhooks:
                 logger.info("No webhooks enabled, skipping Discord upload")
             

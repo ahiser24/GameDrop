@@ -34,17 +34,33 @@ class MediaController(QObject):
     
     def __init__(self):
         """
-        Initialize the media controller and set up the media player and audio output.
-        Connects all relevant signals to internal handlers for forwarding to the UI.
+        Initialize the media controller.
+        Media player creation is deferred to avoid PipeWire hangs on Linux.
         """
         super().__init__()
+        
+        # Defer these to avoid PipeWire timeout during app init
+        self.media_player = None
+        self.audio_output = None
+        self.video_output = None
+        self._initialized = False
+        
+        logger.info("Media controller created (media player deferred)")
+    
+    def _ensure_initialized(self):
+        """
+        Lazily initialize the Qt media components.
+        This defers PipeWire/audio system initialization until actually needed.
+        """
+        if self._initialized:
+            return
+            
+        logger.info("Initializing media player...")
         
         # Create the Qt media player (handles video playback)
         self.media_player = QMediaPlayer()
         # Create the audio output (for controlling volume)
         self.audio_output = QAudioOutput()
-        # Reference to the video output widget (set later)
-        self.video_output = None
         
         # Configure audio output (set to full volume by default)
         self.media_player.setAudioOutput(self.audio_output)
@@ -57,7 +73,12 @@ class MediaController(QObject):
         self.media_player.mediaStatusChanged.connect(self._on_media_status_changed)
         self.media_player.errorOccurred.connect(self._on_error)
         
-        logger.info("Media controller initialized")
+        # Set video output if it was configured before initialization
+        if self.video_output:
+            self.media_player.setVideoOutput(self.video_output)
+        
+        self._initialized = True
+        logger.info("Media controller fully initialized")
     
     def set_video_output(self, video_widget):
         """
@@ -66,7 +87,8 @@ class MediaController(QObject):
             video_widget: The widget to use for video output
         """
         self.video_output = video_widget
-        self.media_player.setVideoOutput(video_widget)
+        if self._initialized and self.media_player:
+            self.media_player.setVideoOutput(video_widget)
         logger.debug("Video output set")
     
     def load_video(self, file_path):
@@ -75,11 +97,24 @@ class MediaController(QObject):
         Args:
             file_path (str): Path to the video file
         """
+        self._ensure_initialized()
         try:
             url = QUrl.fromLocalFile(file_path)
-            # Add this line for diagnostics
-            logger.info(f"Attempting to set media source with URL: {url.toString()}") 
+            logger.info(f"Attempting to set media source with URL: {url.toString()}")
             self.media_player.setSource(url)
+            
+            # Re-apply video output after setting source to ensure display works
+            if self.video_output:
+                self.media_player.setVideoOutput(self.video_output)
+                logger.debug("Video output re-applied after source set")
+            
+            # Start playback briefly and pause to show first frame
+            # This is needed because QVideoWidget won't show anything until frames are decoded
+            self.media_player.play()
+            self.media_player.pause()
+            self.media_player.setPosition(0)
+            logger.debug("Video positioned at start and paused")
+            
             logger.info(f"Media source set: {file_path}")
         except Exception as e:
             logger.error(f"Error loading video: {str(e)}")
@@ -90,6 +125,7 @@ class MediaController(QObject):
         Toggle between play and pause states.
         If currently playing, pause. If paused or stopped, start playing.
         """
+        self._ensure_initialized()
         if self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.media_player.pause()
             logger.debug("Playback paused")
@@ -103,6 +139,7 @@ class MediaController(QObject):
         Args:
             percentage (float): Percentage of the video duration to seek to
         """
+        self._ensure_initialized()
         if not 0 <= percentage <= 100:
             logger.warning(f"Invalid seek percentage: {percentage}")
             return
@@ -119,6 +156,8 @@ class MediaController(QObject):
         Returns:
             int: Current position in ms
         """
+        if not self._initialized:
+            return 0
         return self.media_player.position()
     
     def get_duration(self):
@@ -127,6 +166,8 @@ class MediaController(QObject):
         Returns:
             int: Duration in ms
         """
+        if not self._initialized:
+            return 0
         return self.media_player.duration()
     
     def format_time(self, milliseconds):

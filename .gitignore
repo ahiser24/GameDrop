@@ -1,0 +1,8 @@
+.venv
+build
+__pycache__
+dist
+appimagetool-x86_64.AppImage
+GameDrop.AppImage
+GameDrop_Setup.exe
+GameDrop_Setup.zip

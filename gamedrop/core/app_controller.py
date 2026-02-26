@@ -100,7 +100,7 @@ class GameDropController(QObject):
             return False
     
     def drop_video(self, start_time, end_time, output_path, webhooks=None, 
-                  max_size=10*1024*1024, clip_title=None, progress_callback=None):
+                  max_size=10*1024*1024, clip_title=None, progress_callback=None, output_format="Original", discord_user=None, extra_quality=False):
         """
         Process (clip and compress) the selected video segment.
         Args:
@@ -129,7 +129,10 @@ class GameDropController(QObject):
                 webhooks, 
                 max_size, 
                 clip_title, 
-                progress_callback
+                progress_callback,
+                output_format,
+                discord_user,
+                extra_quality
             )
             
             if result["success"]:

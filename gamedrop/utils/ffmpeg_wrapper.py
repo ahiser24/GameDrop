@@ -79,7 +79,8 @@ from gamedrop.utils.ffmpeg_core import (
     check_ffmpeg_installed,
     download_ffmpeg as ffmpeg_downloader,
     compress_and_send_video,
-    send_to_discord as discord_sender
+    send_to_discord as discord_sender,
+    get_ffmpeg_download_info
 )
 
 # Setup logging
@@ -167,6 +168,15 @@ def download_ffmpeg(progress_callback=None):
     except Exception as e:
         logger.error(f"Error downloading FFmpeg: {str(e)}")
         raise RuntimeError(f"Failed to download FFmpeg: {str(e)}")
+
+def get_ffmpeg_download_info():
+    """
+    Get the download URL and install directory for FFmpeg.
+    Returns:
+        tuple: (download_url, install_directory)
+    """
+    from gamedrop.utils.ffmpeg_core import get_ffmpeg_download_info as core_get_info
+    return core_get_info()
 
 def compress_video(input_path, start_time, end_time, output_path, codec="h264", 
                  bitrate="0", resolution="1920x1080", progress_callback=None):
