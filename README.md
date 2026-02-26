@@ -8,9 +8,7 @@
 
 **Game Drop** is a high-performance, open-source tool built to solve the #1 frustration for gamers: **The Discord File Limit.** While web-based tools make you wait in queues, upload private data, and charge for "priority access," Game Drop uses the raw power of your own GPU to compress and send clips to Discord in seconds, locally, privately, and for free.
 
-<p align="center">
-  <img src="gamedrop/assets/Game Drop.png" alt="Game Drop Interface">
-</p>
+
 
 ---
 
@@ -109,5 +107,6 @@ For power users who want to send to multiple channels simultaneously:
 - This project is licensed under the **MIT License**.
 - Benchmarks reflect comparisons with popular web-based services as of early 2026.
 - **Discord** is a trademark of Discord Inc. Game Drop is not affiliated with, endorsed by, or sponsored by Discord Inc.
+
 
 
