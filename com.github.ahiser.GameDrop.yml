@@ -5,6 +5,11 @@ sdk: org.kde.Sdk
 base: io.qt.PySide.BaseApp
 base-version: '6.8'
 command: game_drop
+add-extensions:
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    version: '24.08'
+    add-ld-path: .
 finish-args:
   # Display
   - --socket=fallback-x11
@@ -42,6 +47,9 @@ modules:
       - grep -v -i "pyside" requirements.txt > reqs_flatpak.txt
       - pip3 install --prefix=/app --no-warn-script-location -r reqs_flatpak.txt
 
+      # Create the directory required by the ffmpeg-full extension
+      - mkdir -p /app/lib/ffmpeg
+
       # Copy application files
       - mkdir -p /app/share/gamedrop
       - cp -r gamedrop /app/share/gamedrop/
@@ -63,10 +71,11 @@ modules:
         if [ -n "$DISPLAY" ]; then
             export QT_QPA_PLATFORM=xcb
         fi
-        # Use GStreamer backend - KDE runtime has full codec support,
-        # while FFmpeg SW decoders are not available in the sandbox.
-        # This must override the app's hardcoded ffmpeg setting.
+        # Use GStreamer for Qt media playback (KDE runtime has full codec support)
         export QT_MEDIA_BACKEND=gstreamer
+        # Prepend the ffmpeg-full extension libraries so the full-featured FFmpeg
+        # (with h264/hevc decoders and VAAPI hardware encoding) is found first.
+        export LD_LIBRARY_PATH="/app/lib/ffmpeg:$LD_LIBRARY_PATH"
         export PYTHONPATH="/app/share/gamedrop/gamedrop:$PYTHONPATH"
         exec python3 /app/share/gamedrop/game_drop.py "$@"
         EOF

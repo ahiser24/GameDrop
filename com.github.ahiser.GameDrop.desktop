@@ -9,3 +9,4 @@ Type=Application
 Categories=Game;Network;Chat;
 Keywords=Game;Clip;Share;Video;
 StartupNotify=true
+StartupWMClass=com.github.ahiser.GameDrop
