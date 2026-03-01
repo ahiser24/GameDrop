@@ -75,17 +75,18 @@ set "INNO_PATH_ALT=C:\Program Files\Inno Setup 6\ISCC.exe"
 if exist "%INNO_PATH%" (
     set "ISCC_EXE=%INNO_PATH%"
     goto BuildInstaller
-) else if exist "%INNO_PATH_ALT%" (
+)
+if exist "%INNO_PATH_ALT%" (
     set "ISCC_EXE=%INNO_PATH_ALT%"
     goto BuildInstaller
-) else (
-    echo WARNING: Inno Setup Compiler (ISCC) not found.
-    echo You need to install Inno Setup from https://jrsoftware.org/isdl.php
-    echo Then manually run: ISCC.exe installer\windows\gamedrop.iss
-    echo Build process completed without creating an installer.
-    echo You can find the application in dist\GameDrop\
-    exit /b 0
 )
+
+echo WARNING: Inno Setup Compiler (ISCC) not found.
+echo You need to install Inno Setup from https://jrsoftware.org/isdl.php
+echo Then manually run: ISCC.exe installer\windows\gamedrop.iss
+echo Build process completed without creating an installer.
+echo You can find the application in dist\GameDrop\
+exit /b 0
 
 :BuildInstaller
 echo Building installer with Inno Setup...
