@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QSpacerItem, QApplication
 )
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal, Slot, QSize, QRectF, QPoint, QMimeData, QEvent, QThread
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QMouseEvent, QDragEnterEvent, QDropEvent, QCursor, QDesktopServices
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QMouseEvent, QDragEnterEvent, QDropEvent, QCursor, QDesktopServices
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -440,10 +440,15 @@ class MainWindow(QWidget):
         self.discord_oauth = DiscordOAuth()
         
         # Enable frameless window
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
-        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, False)
+        self.setAutoFillBackground(True)
         
-        # Enable drag-drop and mouse tracking for resize
+        # Force a solid background for the entire window to prevent transparency leaks
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), Qt.GlobalColor.black)
+        self.setPalette(palette)
         self.setAcceptDrops(True)
         self.setMouseTracking(True)
         self._resize_margin = 12  # Pixels from edge to trigger resize (increased for usability)
@@ -507,7 +512,13 @@ class MainWindow(QWidget):
         self.video_widget.setMinimumSize(400, 280)
         self.video_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.video_widget.setAspectRatioMode(Qt.KeepAspectRatio)
-        self.video_widget.setAttribute(Qt.WA_OpaquePaintEvent)
+        # Ensure a solid black background is always painted (even with no video loaded).
+        # WA_OpaquePaintEvent is wrong here: QVideoWidget doesn't paint when idle,
+        # leading to see-through transparency on Wayland with frameless windows.
+        self.video_widget.setAutoFillBackground(True)
+        video_palette = self.video_widget.palette()
+        video_palette.setColor(self.video_widget.backgroundRole(), QColor('#000000'))
+        self.video_widget.setPalette(video_palette)
         # Enable drops on video widget and install event filter to handle them
         self.video_widget.setAcceptDrops(True)
         self.video_widget.installEventFilter(self)
@@ -710,7 +721,7 @@ class MainWindow(QWidget):
         buttons_row1 = QHBoxLayout()
         buttons_row1.setSpacing(12)
         
-        self.load_button = QPushButton('📁 Load Video')
+        self.load_button = QPushButton('📂 Load Video')
         self.load_button.clicked.connect(self.load_video)
         buttons_row1.addWidget(self.load_button)
         
@@ -737,7 +748,7 @@ class MainWindow(QWidget):
         right_layout.addWidget(self.discord_connect_button)
         
         # Drop It button
-        self.drop_button = QPushButton('💧 Drop It')
+        self.drop_button = QPushButton('✦ Drop It')
         self.drop_button.setObjectName("primaryButton")
         self.drop_button.setEnabled(False)
         self.drop_button.clicked.connect(self.drop_video)
@@ -828,6 +839,14 @@ class MainWindow(QWidget):
             self.setWindowIcon(QIcon(icon_pixmap))
         else:
             self.setWindowIcon(QIcon(svg_path))
+
+    def paintEvent(self, event):
+        """Ensure the entire window is painted with a solid background.
+        Prevents transparency leaks on Wayland with frameless windows."""
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor('#12121a'))
+        painter.end()
+        super().paintEvent(event)
 
     def apply_styles(self):
         """Apply custom styling from external QSS file"""
@@ -1074,7 +1093,7 @@ class MainWindow(QWidget):
             self.discord_connect_button.setText(f'✓ Connected as {name}')
             self.discord_connect_button.setStyleSheet("background-color: #4CAF50; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold;")
         else:
-            self.discord_connect_button.setText('🔗 Connect to Discord')
+            self.discord_connect_button.setText('🌐 Connect to Discord')
             self.discord_connect_button.setStyleSheet("")
 
     def handle_discord_button(self):

@@ -1,0 +1,76 @@
+app-id: com.github.ahiser.GameDrop
+runtime: org.kde.Platform
+runtime-version: '6.8'
+sdk: org.kde.Sdk
+base: io.qt.PySide.BaseApp
+base-version: '6.8'
+command: game_drop
+finish-args:
+  # Display
+  - --socket=fallback-x11
+  - --socket=wayland
+  # Audio
+  - --socket=pulseaudio
+  # Network (for voice chat and updates)
+  - --share=network
+  - --share=ipc
+  # Filesystem (for reading/saving clips)
+  - --filesystem=home
+  # Hardware acceleration
+  - --device=all
+modules:
+  # --- Noto Color Emoji font (required for emoji rendering) ---
+  - name: noto-color-emoji
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 NotoColorEmoji-Regular.ttf /app/share/fonts/NotoColorEmoji-Regular.ttf
+      - fc-cache -f /app/share/fonts
+    sources:
+      - type: file
+        url: https://github.com/googlefonts/noto-emoji/raw/v2.047/fonts/NotoColorEmoji.ttf
+        sha256: 39ee3c587e10e89669b9ff32703261d10d5f9c4dd5ad147b6b5a1c5200591817
+        dest-filename: NotoColorEmoji-Regular.ttf
+
+  # --- Main application ---
+  - name: gamedrop
+    buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
+    build-commands:
+      # Install python dependencies via pip directly during build
+      - grep -v -i "pyside" requirements.txt > reqs_flatpak.txt
+      - pip3 install --prefix=/app --no-warn-script-location -r reqs_flatpak.txt
+
+      # Copy application files
+      - mkdir -p /app/share/gamedrop
+      - cp -r gamedrop /app/share/gamedrop/
+      - cp game_drop.py /app/share/gamedrop/
+
+      # Install desktop integration files
+      - install -Dm644 com.github.ahiser.GameDrop.desktop /app/share/applications/com.github.ahiser.GameDrop.desktop
+      - install -Dm644 com.github.ahiser.GameDrop.metainfo.xml /app/share/metainfo/com.github.ahiser.GameDrop.metainfo.xml
+
+      # Install application icon (SVG for scalable icons)
+      - install -Dm644 gamedrop/assets/logo.svg /app/share/icons/hicolor/scalable/apps/com.github.ahiser.GameDrop.svg
+
+      # Create executable wrapper
+      - |
+        cat <<'EOF' > /app/bin/game_drop
+        #!/bin/bash
+        # Prefer X11/XWayland if available to avoid frameless window rendering
+        # issues under native Wayland (transparency leaks, flickering)
+        if [ -n "$DISPLAY" ]; then
+            export QT_QPA_PLATFORM=xcb
+        fi
+        # Use GStreamer backend - KDE runtime has full codec support,
+        # while FFmpeg SW decoders are not available in the sandbox.
+        # This must override the app's hardcoded ffmpeg setting.
+        export QT_MEDIA_BACKEND=gstreamer
+        export PYTHONPATH="/app/share/gamedrop/gamedrop:$PYTHONPATH"
+        exec python3 /app/share/gamedrop/game_drop.py "$@"
+        EOF
+      - chmod +x /app/bin/game_drop
+    sources:
+      - type: dir
+        path: .

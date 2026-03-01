@@ -10,12 +10,13 @@
 QWidget {
     background-color: #12121a;
     color: #e0e0e0;
-    font-family: 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+    font-family: 'Inter', 'Noto Sans', 'Roboto', 'Segoe UI', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
     font-size: 14px;
 }
 
 QWidget#mainContainer {
     background-color: #12121a;
+    border: 1px solid #2a2a3e;
 }
 
 /* ============================================

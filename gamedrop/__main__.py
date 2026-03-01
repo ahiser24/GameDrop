@@ -13,9 +13,10 @@ import sys
 import os
 import logging
 
-# --- Add this line to force Qt to use the FFmpeg media backend ---
-os.environ['QT_MEDIA_BACKEND'] = 'ffmpeg'
-# -----------------------------------------------------------------
+# --- Set Qt to use the FFmpeg media backend by default ---
+# Allow override via environment (e.g., flatpak uses gstreamer)
+if 'QT_MEDIA_BACKEND' not in os.environ:
+    os.environ['QT_MEDIA_BACKEND'] = 'ffmpeg'
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon

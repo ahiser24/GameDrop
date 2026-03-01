@@ -1,0 +1,11 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Name=Game Drop
+Comment=Game clip sharing application
+Exec=game_drop
+Icon=com.github.ahiser.GameDrop
+Terminal=false
+Type=Application
+Categories=Game;Network;Chat;
+Keywords=Game;Clip;Share;Video;
+StartupNotify=true
