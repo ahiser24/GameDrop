@@ -23,6 +23,7 @@ from PySide6.QtGui import QIcon
 from gamedrop.utils.paths import resource_path, get_logs_directory
 from gamedrop.core.app_controller import GameDropController
 from gamedrop.ui.main_window import MainWindow
+from gamedrop.platform_utils import is_linux
 
 # Set up application-wide logging configuration
 # - Logs will be written to both a file and the console
@@ -54,10 +55,21 @@ def main():
         int: Application exit code (0 for normal exit, non-zero for errors)
     """
     app = QApplication(sys.argv)
-    
-    # Load and set the application-wide icon
-    # The icon is stored in the assets folder and loaded using the resource_path utility
-    icon_path = resource_path('assets/logo.ico')
+
+    # Set the desktop file name so Wayland/KDE taskbars can match this window
+    # to the correct .desktop entry (com.github.ahiser.GameDrop.desktop) and
+    # display its icon rather than a generic placeholder.
+    app.setDesktopFileName('com.github.ahiser.GameDrop')
+
+    # Load and set the application-wide icon.
+    # On Linux, prefer PNG/SVG over .ico for better taskbar/panel compatibility.
+    if is_linux():
+        icon_path = resource_path('assets/logo.png')
+        if not os.path.exists(icon_path):
+            icon_path = resource_path('assets/logo.svg')
+    else:
+        icon_path = resource_path('assets/logo.ico')
+
     if os.path.exists(icon_path):
         app_icon = QIcon(icon_path)
         app.setWindowIcon(app_icon)
