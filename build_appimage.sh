@@ -100,6 +100,9 @@ echo "--- Copying PyInstaller output to AppDir ---"
 # Copy the entire contents of the PyInstaller dist directory
 cp -r "${SCRIPT_DIR}/dist/${APP_NAME}/"* "$APPDIR/usr/bin/"
 
+echo "--- Removing bundled libasound to avoid conflicts on SteamOS ---"
+find "$APPDIR/usr/bin" -name "libasound.so*" -delete
+
 # --- AppRun Script ---
 echo "--- Creating AppRun script ---"
 # This script is the entry point for the AppImage.
