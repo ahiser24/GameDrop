@@ -14,7 +14,7 @@ import os
 import logging
 
 # --- Set Qt to use the FFmpeg media backend by default ---
-# Allow override via environment (e.g., flatpak uses gstreamer)
+# Allow override via environment
 if 'QT_MEDIA_BACKEND' not in os.environ:
     os.environ['QT_MEDIA_BACKEND'] = 'ffmpeg'
 
