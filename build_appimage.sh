@@ -102,6 +102,9 @@ cp -r "${SCRIPT_DIR}/dist/${APP_NAME}/"* "$APPDIR/usr/bin/"
 
 echo "--- Removing bundled libasound to avoid conflicts on SteamOS ---"
 find "$APPDIR/usr/bin" -name "libasound.so*" -delete
+echo "--- Removing bundled PulseAudio libs to use host PipeWire-compatible versions ---"
+find "$APPDIR/usr/bin" -name "libpulse*.so*" -delete
+find "$APPDIR/usr/bin" -name "libpulsecommon*.so*" -delete
 
 # --- AppRun Script ---
 echo "--- Creating AppRun script ---"
@@ -114,6 +117,12 @@ export PATH="\${HERE}/usr/bin:\${PATH}"
 export LD_LIBRARY_PATH="\${HERE}/usr/lib:\${HERE}/usr/bin:\${LD_LIBRARY_PATH}" # Include usr/bin for bundled libs
 export XDG_DATA_DIRS="\${HERE}/usr/share:\${XDG_DATA_DIRS}"
 export QT_PLUGIN_PATH="\${HERE}/usr/bin/PySide6/plugins:\${QT_PLUGIN_PATH}" # Help Qt find plugins
+
+# Force Qt Multimedia to skip PipeWire native and fall back to PulseAudio.
+# Qt's PipeWire device monitor (compiled against PipeWire 1.0.x) cannot resolve
+# audio formats for WirePlumber's loopback nodes on SteamOS (PipeWire 1.2.x).
+# PulseAudio client connects to PipeWire's pipewire-pulse layer, which works reliably.
+export PIPEWIRE_REMOTE=disabled
 
 # Navigate to the binary directory before executing
 cd "\${HERE}/usr/bin"

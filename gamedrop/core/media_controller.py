@@ -13,8 +13,8 @@ Key responsibilities:
 """
 
 import logging
-from PySide6.QtCore import QObject, Signal, QUrl
-from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtCore import QObject, Signal, QUrl, QTimer
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices
 
 # Setup logging for this controller
 logger = logging.getLogger("GameDrop.MediaController")
@@ -43,6 +43,8 @@ class MediaController(QObject):
         self.media_player = None
         self.audio_output = None
         self.video_output = None
+        self.media_devices = None
+        self._audio_device_retries = 0
         self._initialized = False
         
         logger.info("Media controller created (media player deferred)")
@@ -59,8 +61,14 @@ class MediaController(QObject):
         
         # Create the Qt media player (handles video playback)
         self.media_player = QMediaPlayer()
+        
         # Create the audio output (for controlling volume)
         self.audio_output = QAudioOutput()
+        
+        # Watch for audio devices to become ready (handles slow PulseAudio/PipeWire init)
+        self.media_devices = QMediaDevices(self)
+        self.media_devices.audioOutputsChanged.connect(self._setup_audio_device)
+        QTimer.singleShot(300, self._setup_audio_device)   # first check after 300 ms
         
         # Configure audio output (set to full volume by default)
         self.media_player.setAudioOutput(self.audio_output)
@@ -80,6 +88,29 @@ class MediaController(QObject):
         self._initialized = True
         logger.info("Media controller fully initialized")
     
+    # ──────────────────────────────────────────────────────────────
+    # Helper — waits for audio devices and attaches the default one
+    MAX_AUDIO_RETRIES = 10  # 10 × 500ms = 5 seconds max
+
+    def _setup_audio_device(self):
+        """Attach the correct audio device once the audio subsystem has finished scanning."""
+        if not self.audio_output or not self.media_devices:
+            return
+            
+        outputs = self.media_devices.audioOutputs()
+        if outputs:
+            device = self.media_devices.defaultAudioOutput() or outputs[0]
+            self.audio_output.setDevice(device)
+            logger.info(f"✅ Audio device attached: {device.description()}")
+        elif self._audio_device_retries < self.MAX_AUDIO_RETRIES:
+            self._audio_device_retries += 1
+            logger.info(f"ℹ️  No audio devices yet — retry {self._audio_device_retries}/{self.MAX_AUDIO_RETRIES}")
+            QTimer.singleShot(500, self._setup_audio_device)
+        else:
+            logger.warning("⚠️  Could not find audio devices after retries — using default output")
+    
+    # ──────────────────────────────────────────────────────────────
+    # (rest of your methods unchanged — set_video_output, load_video, etc.)
     def set_video_output(self, video_widget):
         """
         Set the video widget (QVideoWidget) where video will be displayed.
@@ -109,7 +140,6 @@ class MediaController(QObject):
                 logger.debug("Video output re-applied after source set")
             
             # Start playback briefly and pause to show first frame
-            # This is needed because QVideoWidget won't show anything until frames are decoded
             self.media_player.play()
             self.media_player.pause()
             self.media_player.setPosition(0)
@@ -119,6 +149,9 @@ class MediaController(QObject):
         except Exception as e:
             logger.error(f"Error loading video: {str(e)}")
             self.errorOccurred.emit(f"Error loading video: {str(e)}")
+    
+    # ... (toggle_play_pause, seek_percentage, get_position, etc. — completely unchanged)
+    # --- Internal signal handlers --- (also unchanged)
     
     def toggle_play_pause(self):
         """
