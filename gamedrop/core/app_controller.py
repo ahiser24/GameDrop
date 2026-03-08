@@ -14,6 +14,8 @@ Key responsibilities:
 
 import os
 import logging
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal, QUrl
@@ -115,9 +117,13 @@ class GameDropController(QObject):
             dict: Result with 'success' and 'message' keys
         """
         if not self.ffmpeg_available:
-            # If FFmpeg is missing, show an error and abort
-            QMessageBox.critical(None, "Error", "FFmpeg is not available. Video clipping disabled.")
-            return False
+            # On Linux, re-check in case the startup detection was a false negative
+            if is_linux():
+                self.ffmpeg_available = self._check_ffmpeg()
+            if not self.ffmpeg_available:
+                # If FFmpeg is still missing, show an error and abort
+                QMessageBox.critical(None, "Error", "FFmpeg is not available. Video clipping disabled.")
+                return False
         
         try:
             # Call the video processor to create the clip
@@ -165,6 +171,8 @@ class GameDropController(QObject):
     def _check_ffmpeg(self):
         """
         Check if FFmpeg is available and working.
+        On Linux, includes a direct fallback check using shutil.which in case
+        the wrapper-based check fails for environment reasons.
         Returns:
             bool: True if FFmpeg is found and working, False otherwise
         """
@@ -174,11 +182,37 @@ class GameDropController(QObject):
                 logger.info("FFmpeg found and verified working")
                 return True
             else:
-                logger.warning("FFmpeg not found or not working properly")
-                return False
+                logger.warning("FFmpeg not found via wrapper check")
         except Exception as e:
-            logger.error(f"Error checking FFmpeg: {str(e)}")
-            return False
+            logger.error(f"Error checking FFmpeg via wrapper: {str(e)}")
+
+        # Linux fallback: directly check if system ffmpeg is in PATH and works.
+        # The wrapper check can fail for various environment reasons (e.g. venv
+        # isolation, PATH differences) even when system ffmpeg is perfectly fine.
+        if is_linux():
+            ffmpeg_path = shutil.which("ffmpeg")
+            if ffmpeg_path:
+                try:
+                    # Clean AppImage env vars so system ffmpeg can find its
+                    # own libraries instead of the bundled ones.
+                    env = os.environ.copy()
+                    for var in ['LD_LIBRARY_PATH', 'LD_PRELOAD', 'PYTHONHOME',
+                                'PYTHONPATH', 'APPDIR', 'APPIMAGE',
+                                'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH']:
+                        env.pop(var, None)
+                    result = subprocess.run(
+                        [ffmpeg_path, '-version'],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        timeout=5, env=env
+                    )
+                    if result.returncode == 0 and b'ffmpeg version' in result.stdout:
+                        logger.info(f"FFmpeg found via direct system check: {ffmpeg_path}")
+                        return True
+                except Exception as e:
+                    logger.warning(f"Direct system FFmpeg check failed: {e}")
+
+        logger.warning("FFmpeg not found or not working properly")
+        return False
     
     def _log_system_info(self):
         """

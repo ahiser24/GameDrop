@@ -75,6 +75,39 @@ CREATE_NO_WINDOW = 0x08000000 if is_windows() else 0
 logger = logging.getLogger("GameDrop.FFmpeg")
 
 
+def _get_clean_env():
+    """
+    Return a copy of the current environment with AppImage-specific variables
+    removed.  When running inside an AppImage, variables like LD_LIBRARY_PATH
+    and LD_PRELOAD point to the bundled libraries.  System binaries (e.g.
+    /usr/bin/ffmpeg) that are dynamically linked against the *host* libraries
+    will fail to start if they pick up incompatible bundled versions.
+
+    By stripping these variables we let the system ffmpeg resolve its own
+    libraries normally, while the rest of the AppImage continues to work.
+    """
+    env = os.environ.copy()
+    if 'APPIMAGE' not in env:
+        # Not running inside an AppImage — return the environment as-is.
+        return env
+
+    vars_to_clean = [
+        'LD_LIBRARY_PATH', 'LD_PRELOAD',
+        'PYTHONHOME', 'PYTHONPATH',
+        'APPDIR', 'APPIMAGE',
+        'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH',
+        'ARGV0', 'APPRUN', 'OWD',
+    ]
+    cleaned = []
+    for var in vars_to_clean:
+        if var in env:
+            del env[var]
+            cleaned.append(var)
+    if cleaned:
+        logger.debug(f"Cleaned AppImage env vars for subprocess: {', '.join(cleaned)}")
+    return env
+
+
 def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, codec, bitrate,
                      resolution, ffmpeg_path, pass_num,
                      passlog_file, single_pass_progress_callback=None,
@@ -187,7 +220,8 @@ def _ffmpeg_run_pass(input_path, start_time, end_time, output_path_or_null, code
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         universal_newlines=True, cwd=os.path.expanduser('~'),
-        creationflags=CREATE_NO_WINDOW
+        creationflags=CREATE_NO_WINDOW,
+        env=_get_clean_env()
     )
 
     time_pattern = re.compile(r'time=(\d+:\d+:\d+.\d+)')
@@ -244,14 +278,24 @@ def get_ffmpeg_path():
 
 def check_ffmpeg_installed():
     ffmpeg_path = get_ffmpeg_path()
+    clean_env = _get_clean_env()
     if os.path.exists(ffmpeg_path) and os.access(ffmpeg_path, os.X_OK):
         try:
-            result = subprocess.run([ffmpeg_path, '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5, creationflags=CREATE_NO_WINDOW)
+            result = subprocess.run(
+                [ffmpeg_path, '-version'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=5, creationflags=CREATE_NO_WINDOW,
+                env=clean_env
+            )
             if result.returncode == 0 and b'ffmpeg version' in result.stdout: return True
         except Exception as e: logger.warning(f"FFmpeg at {ffmpeg_path} failed execution: {e}")
     if is_linux():
         try:
-            result = subprocess.run(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+            result = subprocess.run(
+                ['ffmpeg', '-version'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=5, env=clean_env
+            )
             if result.returncode == 0 and b'ffmpeg version' in result.stdout: return True
         except Exception as e: logger.warning(f"System FFmpeg check failed: {e}")
     logger.warning(f"FFmpeg not available or not functional at {ffmpeg_path}.")

@@ -459,9 +459,14 @@ class MainWindow(QWidget):
         # Update title bar with GPU info
         self.title_bar.set_gpu_info(self.detected_gpu)
         
-        # Check FFmpeg and show download dialog if needed
-        if not self.controller.ffmpeg_available:
+        # Check FFmpeg and show download dialog if needed (Windows only).
+        # On Linux, FFmpeg is expected to be installed via the system package
+        # manager, so we do NOT show the download popup — it was designed for
+        # Windows which does not ship with FFmpeg.
+        if not self.controller.ffmpeg_available and is_windows():
             QTimer.singleShot(500, self.show_ffmpeg_download_dialog)
+        elif not self.controller.ffmpeg_available and is_linux():
+            self.update_status("FFmpeg not found. Install it via your package manager (e.g. 'sudo pacman -S ffmpeg').", 0)
 
     def init_ui(self):
         """Initialize the user interface with two-column layout"""
